@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+alembic
+pydantic
+pydantic-settings
+scikit-learn
+pandas
+numpy==1.26.4
+joblib
+torch==2.3.0
+pytest
+httpx
+black
+flake8
+python-dotenv
