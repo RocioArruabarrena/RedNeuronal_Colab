@@ -49,11 +49,15 @@ def main() -> None:
     from scripts.evaluate_model import cargar_modelo
 
     modelo_actual = cargar_modelo(MODEL_PATH, input_dim=X_test.shape[1])
-    resultado_inicial = evaluar(modelo_actual, X_test, y_test, umbral=UMBRAL_CLASIFICACION)
+    resultado_inicial = evaluar(
+        modelo_actual, X_test, y_test, umbral=UMBRAL_CLASIFICACION
+    )
     _imprimir_resultado("Evaluacion inicial", resultado_inicial)
 
     if resultado_inicial["f1"] >= F1_MINIMO:
-        print(f"\nF1 >= {F1_MINIMO} -> el modelo actual cumple el umbral. No se reentrena.")
+        print(
+            f"\nF1 >= {F1_MINIMO} -> el modelo actual cumple el umbral. No se reentrena."
+        )
         return
 
     print(

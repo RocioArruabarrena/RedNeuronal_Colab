@@ -48,14 +48,12 @@ random.seed(42)  # reproducibilidad
 
 def leer_usuarios_sqlite(conn: sqlite3.Connection) -> list[dict]:
     conn.row_factory = sqlite3.Row
-    cur = conn.execute(
-        """
+    cur = conn.execute("""
         SELECT id, username, tags, bio, mood, location,
                is_online, is_moderator, is_public, pixel_avatar
         FROM users
         WHERE deleted_at IS NULL
-        """
-    )
+        """)
     return [dict(row) for row in cur.fetchall()]
 
 
@@ -68,13 +66,11 @@ def leer_posts_por_usuario_sqlite(conn: sqlite3.Connection) -> dict[int, dict]:
     una señal de afinidad "social".
     """
     conn.row_factory = sqlite3.Row
-    cur = conn.execute(
-        """
+    cur = conn.execute("""
         SELECT user_id, tags, likes_count, comments_count
         FROM posts
         WHERE deleted_at IS NULL AND is_public = 1
-        """
-    )
+        """)
 
     agregados: dict[int, dict] = {}
     for row in cur.fetchall():
@@ -101,9 +97,7 @@ def leer_posts_por_usuario_sqlite(conn: sqlite3.Connection) -> dict[int, dict]:
 
 def leer_friendships_sqlite(conn: sqlite3.Connection) -> list[dict]:
     conn.row_factory = sqlite3.Row
-    cur = conn.execute(
-        "SELECT requester_id, receiver_id, status FROM friendships"
-    )
+    cur = conn.execute("SELECT requester_id, receiver_id, status FROM friendships")
     return [dict(row) for row in cur.fetchall()]
 
 
@@ -189,8 +183,6 @@ def main() -> None:
         frozenset((f["requester_id"], f["receiver_id"])) for f in friendships_raw
     }
 
-    
-
     ids_usuarios = [u["id"] for u in usuarios]
     ids_con_posts = list(posts_por_usuario.keys())
 
@@ -253,9 +245,7 @@ def main() -> None:
             nuevo_score = calcular_activity_score(u, posts_info)
 
             existente = (
-                session.query(Profile)
-                .filter(Profile.username == u["username"])
-                .first()
+                session.query(Profile).filter(Profile.username == u["username"]).first()
             )
             if existente:
                 # Ya corrimos el script antes: actualizamos con los
@@ -289,16 +279,12 @@ def main() -> None:
                 continue
             ya_existe = (
                 session.query(Friendship)
-                .filter(
-                    Friendship.user_id == uid, Friendship.friend_id == fid
-                )
+                .filter(Friendship.user_id == uid, Friendship.friend_id == fid)
                 .first()
             )
             if ya_existe:
                 continue
-            session.add(
-                Friendship(user_id=uid, friend_id=fid, is_mutual=True)
-            )
+            session.add(Friendship(user_id=uid, friend_id=fid, is_mutual=True))
             cargados_pos += 1
 
         # Negativos
@@ -310,16 +296,12 @@ def main() -> None:
                 continue
             ya_existe = (
                 session.query(Friendship)
-                .filter(
-                    Friendship.user_id == uid, Friendship.friend_id == fid
-                )
+                .filter(Friendship.user_id == uid, Friendship.friend_id == fid)
                 .first()
             )
             if ya_existe:
                 continue
-            session.add(
-                Friendship(user_id=uid, friend_id=fid, is_mutual=False)
-            )
+            session.add(Friendship(user_id=uid, friend_id=fid, is_mutual=False))
             cargados_neg += 1
 
         session.commit()

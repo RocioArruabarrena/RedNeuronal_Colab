@@ -60,7 +60,9 @@ def main():
     print(f"Ejemplos reales cargados: {len(X)} ({int(y.sum())} positivos)")
 
     if len(X) == 0:
-        print("No hay datos en la base. Corré antes scripts/extract_from_yo_adolescente.py")
+        print(
+            "No hay datos en la base. Corré antes scripts/extract_from_yo_adolescente.py"
+        )
         return
 
     model = cargar_modelo()
@@ -75,19 +77,29 @@ def main():
     for umbral in [0.50, 0.40, 0.35, 0.30, 0.25]:
         preds = (probs >= umbral).astype(int)
         reporte = classification_report(
-            y, preds, target_names=["no_compatible", "compatible"],
-            output_dict=True, zero_division=0,
+            y,
+            preds,
+            target_names=["no_compatible", "compatible"],
+            output_dict=True,
+            zero_division=0,
         )
         p = reporte["compatible"]["precision"]
         r = reporte["compatible"]["recall"]
         f1 = reporte["compatible"]["f1-score"]
-        print(f"Umbral {umbral:.2f} -> Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}")
+        print(
+            f"Umbral {umbral:.2f} -> Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}"
+        )
 
     print("\n--- Reporte completo con umbral 0.50 ---")
     preds_final = (probs >= 0.50).astype(int)
-    print(classification_report(
-        y, preds_final, target_names=["no_compatible", "compatible"], zero_division=0
-    ))
+    print(
+        classification_report(
+            y,
+            preds_final,
+            target_names=["no_compatible", "compatible"],
+            zero_division=0,
+        )
+    )
 
 
 if __name__ == "__main__":

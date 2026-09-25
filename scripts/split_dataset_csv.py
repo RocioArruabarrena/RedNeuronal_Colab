@@ -82,10 +82,18 @@ def cargar_features_y_labels(
 
 def split_dataset(X: np.ndarray, y: np.ndarray, random_state: int = 42):
     X_train, X_temp, y_train, y_temp = train_test_split(
-        X, y, test_size=0.30, stratify=y, random_state=random_state,
+        X,
+        y,
+        test_size=0.30,
+        stratify=y,
+        random_state=random_state,
     )
     X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.50, stratify=y_temp, random_state=random_state,
+        X_temp,
+        y_temp,
+        test_size=0.50,
+        stratify=y_temp,
+        random_state=random_state,
     )
     return X_train, X_val, X_test, y_train, y_val, y_test
 
@@ -94,7 +102,9 @@ if __name__ == "__main__":
     perfiles = cargar_perfiles(PROFILES_CSV)
     X, y = cargar_features_y_labels(perfiles, FRIENDSHIPS_CSV)
 
-    print(f"Dataset total: {len(y)} ejemplos ({y.sum()} positivos, {len(y) - y.sum()} negativos)")
+    print(
+        f"Dataset total: {len(y)} ejemplos ({y.sum()} positivos, {len(y) - y.sum()} negativos)"
+    )
 
     X_train, X_val, X_test, y_train, y_val, y_test = split_dataset(X, y)
 
@@ -107,9 +117,12 @@ if __name__ == "__main__":
 
     np.savez(
         data_dir / "splits.npz",
-        X_train=X_train, y_train=y_train,
-        X_val=X_val, y_val=y_val,
-        X_test=X_test, y_test=y_test,
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+        X_test=X_test,
+        y_test=y_test,
         feature_names=FEATURE_NAMES,
     )
     print(f"\nSplit guardado en: {(data_dir / 'splits.npz').resolve()}")

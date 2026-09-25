@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, Boolean, DateTime, ForeignKey, Float
 from sqlalchemy.sql import func
 from app.database import Base
 
+
 class Friendship(Base):
     __tablename__ = "friendships"
 

@@ -31,7 +31,9 @@ def cargar_datos_test(data_path: Path = DATA_PATH) -> tuple[np.ndarray, np.ndarr
     return data["X_test"], data["y_test"]
 
 
-def cargar_modelo(model_path: Path = MODEL_PATH, input_dim: int = 5) -> CompatibilityNet:
+def cargar_modelo(
+    model_path: Path = MODEL_PATH, input_dim: int = 5
+) -> CompatibilityNet:
     modelo = CompatibilityNet(input_dim=input_dim)
     state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
     modelo.load_state_dict(state_dict)

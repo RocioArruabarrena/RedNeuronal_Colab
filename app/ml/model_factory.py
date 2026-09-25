@@ -4,6 +4,7 @@ import torch
 
 from app.ml.model import CompatibilityNet
 
+
 class ModelFactory:
     """Patrón Factory: centraliza la carga/instanciación del modelo entrenado."""
 

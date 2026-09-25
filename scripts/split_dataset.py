@@ -50,14 +50,16 @@ def split_dataset(X: np.ndarray, y: np.ndarray, random_state: int = 42):
     Split 70/15/15 (train/val/test), estratificado por clase.
     """
     X_train, X_temp, y_train, y_temp = train_test_split(
-        X, y,
+        X,
+        y,
         test_size=0.30,
         stratify=y,
         random_state=random_state,
     )
 
     X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp,
+        X_temp,
+        y_temp,
         test_size=0.50,
         stratify=y_temp,
         random_state=random_state,
@@ -68,7 +70,9 @@ def split_dataset(X: np.ndarray, y: np.ndarray, random_state: int = 42):
 
 if __name__ == "__main__":
     X, y = load_features_and_labels()
-    print(f"Dataset total: {len(y)} ejemplos ({y.sum()} positivos, {len(y) - y.sum()} negativos)")
+    print(
+        f"Dataset total: {len(y)} ejemplos ({y.sum()} positivos, {len(y) - y.sum()} negativos)"
+    )
 
     X_train, X_val, X_test, y_train, y_val, y_test = split_dataset(X, y)
 
@@ -81,9 +85,12 @@ if __name__ == "__main__":
 
     np.savez(
         data_dir / "splits.npz",
-        X_train=X_train, y_train=y_train,
-        X_val=X_val, y_val=y_val,
-        X_test=X_test, y_test=y_test,
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+        X_test=X_test,
+        y_test=y_test,
         feature_names=FEATURE_NAMES,
     )
     print(f"\nSplit guardado en: {(data_dir / 'splits.npz').resolve()}")

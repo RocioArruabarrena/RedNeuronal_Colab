@@ -105,7 +105,9 @@ def main() -> None:
     X = np.array(X)
     y = np.array(y)
 
-    print(f"Ejemplos totales: {len(y)} (positivos: {y.sum()}, negativos: {len(y) - y.sum()})")
+    print(
+        f"Ejemplos totales: {len(y)} (positivos: {y.sum()}, negativos: {len(y) - y.sum()})"
+    )
 
     if len(y) < 10:
         print(
@@ -151,12 +153,18 @@ def main() -> None:
         p, r, f, _ = precision_recall_fscore_support(
             y_test, y_pred_umbral, average="binary", zero_division=0
         )
-        print(f"Umbral {umbral:.2f} -> Precision: {p:.2f} | Recall: {r:.2f} | F1: {f:.2f}")
+        print(
+            f"Umbral {umbral:.2f} -> Precision: {p:.2f} | Recall: {r:.2f} | F1: {f:.2f}"
+        )
 
     umbral_elegido = 0.35  # ajustar según los resultados de arriba
     y_pred = (y_proba >= umbral_elegido).astype(int)
     print(f"\n--- Reporte completo con umbral elegido ({umbral_elegido}) ---")
-    print(classification_report(y_test, y_pred, target_names=["no_compatible", "compatible"]))
+    print(
+        classification_report(
+            y_test, y_pred, target_names=["no_compatible", "compatible"]
+        )
+    )
 
     precision, recall, f1, _ = precision_recall_fscore_support(
         y_test, y_pred, average="binary", zero_division=0

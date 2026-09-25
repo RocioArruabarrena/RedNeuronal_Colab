@@ -7,9 +7,11 @@ from app.views.compatibility_schema import CompatibilityRequest, CompatibilityRe
 
 router = APIRouter(prefix="/compatibility", tags=["Compatibility"])
 
+
 def get_service(db: Session = Depends(get_db)) -> CompatibilityService:
     repository = FriendshipRepository(db)
     return CompatibilityService(repository)
+
 
 @router.post("/predict", response_model=CompatibilityResponse)
 def predict_compatibility(

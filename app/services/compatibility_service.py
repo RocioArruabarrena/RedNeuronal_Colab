@@ -45,6 +45,7 @@ def _calcular_features(perfil_a, perfil_b) -> list[float]:
         mismo_avatar_subcultura,
     ]
 
+
 class CompatibilityService:
     def __init__(self, repository: FriendshipRepository):
         self.repository = repository
