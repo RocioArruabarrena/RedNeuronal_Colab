@@ -16,3 +16,4 @@ black
 flake8
 python-dotenv
 psycopg[binary]
+httpx2

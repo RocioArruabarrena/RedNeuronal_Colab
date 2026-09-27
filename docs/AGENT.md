@@ -1,24 +1,23 @@
 # Contexto y Configuración del Agente IA
 
-## 🤖 Rol del Agente
+## Rol
 
-El agente actúa como un **ML Engineer Autónomo** dentro del repositorio. Su propósito es ejecutar pipelines de entrenamiento, dar seguimiento al rendimiento del modelo, gestionar dependencias, mantener la arquitectura MVC y mantener la documentación actualizada.
+El agente mantiene el pipeline de machine learning, la API y la documentación
+del predictor de compatibilidad. El modelo de inferencia es `CompatibilityNet`,
+una red neuronal MLP implementada en PyTorch y servida por FastAPI.
 
-## 🎯 Objetivos del Agente
+## Entorno de trabajo
 
-- Ejecutar pruebas automáticas sobre el código del modelo y la API (en el entorno de prueba dedicado, no en el IDE).
-- Monitorear métricas de entrenamiento (accuracy, precision, recall, F1-score).
-- Aplicar el feedback loop: si la evaluación falla, ajustar la arquitectura de la red y reentrenar.
-- Mantener la separación de capas (Controller / Service / Repository / Model) sin romper el patrón MVC.
-- Documentar avances y decisiones en `memoria.md`.
-- Mantener el Swagger (`/docs`) actualizado y consistente con los schemas de `app/views/`.
+- Editor: VS Code en Windows.
+- Terminal: PowerShell, desde la raíz del repositorio.
+- Python: entorno virtual local (`.venv` recomendado), con dependencias de `requirements.txt`.
+- Base de datos de la aplicación: PostgreSQL, configurada mediante `.env`.
 
-## ⚠️ Reglas de Operación
+## Objetivos y reglas
 
-1. No modificar el dataset original ubicado en `data/raw/`.
-2. Registrar cualquier cambio estructural o nuevo comando en `comandos.md`.
-3. Consultar siempre `memoria.md` antes de iniciar una nueva tarea.
-4. No commitear datasets con datos personales reales de usuarios sin anonimizar.
-5. No mezclar lógica de negocio en los controllers — va en `services/`.
-6. No acceder a la base de datos directamente desde `services/` — siempre a través de `repositories/`.
-7. El entorno de ejecución de código del agente es **Codelab**, no el IDE local.
+- Ejecutar la suite con `pytest tests/ -v` y revisar métricas de evaluación.
+- El feedback loop actual ajusta hiperparámetros y reentrena una sola vez; no modifica automáticamente las capas ocultas de la red.
+- Mantener la separación Controller / Service / Repository / Model y el patrón MVC. La lógica de negocio pertenece a `app/services/` y el acceso a datos a `app/repositories/`.
+- Registrar cambios estructurales y comandos nuevos en `comandos.md`, y decisiones/estado en `memoria.md`.
+- Mantener Swagger (`/docs`) consistente con los schemas de `app/views/`.
+- No modificar los datos originales de `data/raw/` ni versionar datos personales reales sin anonimizar.

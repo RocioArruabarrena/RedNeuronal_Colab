@@ -1,19 +1,30 @@
-# Comandos de Ejecución Autónoma
+# Comandos del Proyecto
 
-Este archivo almacena la memoria de comandos que el Agente IA debe emplear para gestionar el proyecto (adaptado a PowerShell/Windows).
+Ejecutar desde PowerShell en la raíz del repositorio, con el entorno virtual
+activado.
 
-## 🐍 Entorno y Dependencias
+## Entorno y dependencias
 
 ```powershell
-# Crear y activar entorno virtual
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-
-# Instalar dependencias
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-## 🗄️ Base de Datos (PostgreSQL + Alembic)
+## Pruebas y calidad de código
+
+```powershell
+# Suite completa (tests/ está configurado en pytest.ini)
+pytest tests/ -v
+
+# Lint (configuración en .flake8)
+flake8 app scripts tests
+
+# Formateo
+black app scripts tests
+```
+
+## Base de datos (PostgreSQL + Alembic)
 
 ```powershell
 # Generar una migración a partir de los modelos
@@ -26,42 +37,26 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
-## 🚀 Levantar la API
+## API
 
 ```powershell
-# Levantar el servidor en modo desarrollo (con reload automático)
 uvicorn app.main:app --reload
-
-# Swagger disponible en http://localhost:8000/docs
-# Redoc disponible en http://localhost:8000/redoc
 ```
 
-## 🧠 Entrenamiento y Evaluación del Modelo
+Swagger: `http://localhost:8000/docs`. Requiere PostgreSQL configurado en el
+entorno o en `.env`.
+
+## Entrenamiento y evaluación
 
 ```powershell
-# Ejecutar entrenamiento del modelo principal
-python app\ml\train.py
-
-# Ejecutar evaluación del modelo
-python app\ml\evaluate.py --model_path models\best_model.pkl
+python scripts/split_dataset.py
+python scripts/train_neural_net.py
+python scripts/evaluate_model.py
+python scripts/feedback_loop.py
 ```
 
-## 🧪 Pruebas (entorno de prueba, no el IDE)
-
-```powershell
-# Tests unitarios
-pytest tests\unit
-
-# Tests de integración (contra la API/DB)
-pytest tests\integration
-```
-
-## 🧹 Calidad de Código
-
-```powershell
-black app\
-flake8 app\
-```
+El feedback loop reentrena una vez ajustando épocas y `weight_decay`; no cambia
+automáticamente la arquitectura del modelo.
 
 
 

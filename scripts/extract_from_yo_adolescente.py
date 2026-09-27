@@ -14,6 +14,10 @@ Qué hace:
    que los positivos para no desbalancear el dataset
 4. Inserta todo en profiles y friendships de PostgreSQL
 
+Requiere la variable YO_ADOLESCENTE_SQLITE_PATH configurada en tu
+.env local (ver .env.example) apuntando a la database.sqlite de
+Yo Adolescente.
+
 Correr desde la raíz del proyecto Red-Neuronal, con el venv activado:
     python scripts/extract_from_yo_adolescente.py
 """
@@ -30,15 +34,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import engine
 from app.models.profile import Profile
 from app.models.friendship import Friendship
 
 # --- Configuración -----------------------------------------------------
 
-SQLITE_PATH = Path(
-    r"C:\Users\arruabarrena\Desktop\Arruabarrena-Rocio\example-app\database\database.sqlite"
-)
+if not settings.yo_adolescente_sqlite_path:
+    raise SystemExit(
+        "Falta configurar YO_ADOLESCENTE_SQLITE_PATH en tu archivo .env "
+        "(ruta a database.sqlite de Yo Adolescente). Ver .env.example."
+    )
+
+SQLITE_PATH = Path(settings.yo_adolescente_sqlite_path)
+
+if not SQLITE_PATH.exists():
+    raise SystemExit(f"No se encontró el archivo SQLite en: {SQLITE_PATH}")
 
 # Cuántos negativos generar por cada positivo (1 = dataset balanceado)
 NEGATIVE_RATIO = 1
