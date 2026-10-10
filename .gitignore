@@ -29,3 +29,6 @@ Thumbs.db
 
 # Logs
 *.log
+profiles.csv
+friendships.csv
+reales_features.csv
