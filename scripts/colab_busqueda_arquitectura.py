@@ -8,14 +8,17 @@ import torch
 import torch.nn as nn
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
 
-# Cambiar estas rutas si los archivos estan en otra ubicacion de Colab.
-REALES_CSV = Path("/content/reales_features.csv")
-RESULTADOS_CSV = Path("/content/resultados_arquitectura.csv")
+# Cambiar DATA_CSV al CSV real o sintetico que se quiera evaluar.
+DATA_CSV = Path("/content/reales_features.csv")
+MODO_DATASET_GRANDE = False
+RESULTADOS_CSV = Path(
+    f"/content/resultados_arquitectura_{DATA_CSV.stem}.csv"
+)
 
 FEATURE_NAMES = [
     "similitud_intereses",
@@ -26,11 +29,11 @@ FEATURE_NAMES = [
 ]
 LABEL_NAME = "y"
 SEED = 42
-N_SPLITS = 5
-N_REPEATS = 3
-EPOCHS = 200
+N_SPLITS = 3 if MODO_DATASET_GRANDE else 5
+N_REPEATS = 1 if MODO_DATASET_GRANDE else 3
+EPOCHS = 30 if MODO_DATASET_GRANDE else 200
 LEARNING_RATE = 1e-3
-BATCH_SIZE = 16
+BATCH_SIZE = 256 if MODO_DATASET_GRANDE else 16
 WEIGHT_DECAY = 1e-4
 UMBRAL = 0.5
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -78,9 +81,9 @@ class CompatibilityNet(nn.Module):
 
 
 def cargar_datos() -> tuple[np.ndarray, np.ndarray]:
-    if not REALES_CSV.is_file():
-        raise FileNotFoundError(f"No se encontro el CSV: {REALES_CSV}")
-    frame = pd.read_csv(REALES_CSV)
+    if not DATA_CSV.is_file():
+        raise FileNotFoundError(f"No se encontro el CSV: {DATA_CSV}")
+    frame = pd.read_csv(DATA_CSV)
     required_columns = [*FEATURE_NAMES, LABEL_NAME]
     missing_columns = [name for name in required_columns if name not in frame]
     if missing_columns:
@@ -160,11 +163,18 @@ def _resumen_metricas(
 def evaluar_configuraciones(
     features: np.ndarray, labels: np.ndarray
 ) -> pd.DataFrame:
-    splitter = RepeatedStratifiedKFold(
-        n_splits=N_SPLITS,
-        n_repeats=N_REPEATS,
-        random_state=SEED,
-    )
+    if MODO_DATASET_GRANDE:
+        splitter = StratifiedKFold(
+            n_splits=N_SPLITS,
+            shuffle=True,
+            random_state=SEED,
+        )
+    else:
+        splitter = RepeatedStratifiedKFold(
+            n_splits=N_SPLITS,
+            n_repeats=N_REPEATS,
+            random_state=SEED,
+        )
     scores_por_configuracion = {
         (hidden_layers, dropout): [] for hidden_layers, dropout in ARQUITECTURAS
     }
