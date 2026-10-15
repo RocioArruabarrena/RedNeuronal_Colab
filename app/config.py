@@ -9,12 +9,6 @@ class Settings(BaseSettings):
     api_title: str = "Predictor de Compatibilidad de Amistad API"
     api_version: str = "1.0.0"
 
-    # Ruta a la base SQLite de Yo Adolescente, usada por
-    # scripts/extract_from_yo_adolescente.py. Sin default: cada
-    # persona que corra el script la define en su propio .env
-    # (no versionado), así no queda hardcodeada ninguna ruta local.
-    yo_adolescente_sqlite_path: str = ""
-
     model_config = SettingsConfigDict(env_file=".env")
 
 

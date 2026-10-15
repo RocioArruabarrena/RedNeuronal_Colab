@@ -1,4 +1,4 @@
-"""Compara arquitecturas de CompatibilityNet en los datos reales de Colab."""
+"""Compara arquitecturas de CompatibilityNet en el dataset sintetico."""
 
 from pathlib import Path
 
@@ -13,12 +13,12 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
 
-# Cambiar DATA_CSV al CSV real o sintetico que se quiera evaluar.
-DATA_CSV = Path("/content/reales_features.csv")
-MODO_DATASET_GRANDE = False
-RESULTADOS_CSV = Path(
-    f"/content/resultados_arquitectura_{DATA_CSV.stem}.csv"
-)
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+# CSV con las 5 features y la etiqueta "y" (en la raiz del repo).
+DATA_CSV = ROOT_DIR / "sintetico_features.csv"
+MODO_DATASET_GRANDE = True
+RESULTADOS_CSV = ROOT_DIR / "results" / f"resultados_arquitectura_{DATA_CSV.stem}.csv"
 
 FEATURE_NAMES = [
     "similitud_intereses",
