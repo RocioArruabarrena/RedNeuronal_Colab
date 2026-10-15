@@ -2,7 +2,7 @@
 """
 Red neuronal para el predictor de compatibilidad de amistad.
 
-Arquitectura: MLP simple (dataset chico de 94 ejemplos)
+Arquitectura: MLP simple (MLP simple para datos tabulares (5 features, 8000 ejemplos sintéticos)
     Linear(5->8) + ReLU + Dropout(0.3)
     Linear(8->4) + ReLU + Dropout(0.2)
     Linear(4->1) + Sigmoid

@@ -1,184 +1,211 @@
 # Predictor de Compatibilidad de Amistad — Red Neuronal
 
-Proyecto de Machine Learning orientado a predecir compatibilidad de amistad entre usuarios, como evolución del `ExploreController` de proyecto individual de red social, "Yo Adolescente". Expone un modelo entrenado a través de una API REST documentada con Swagger, integrando flujos de trabajo autónomos mediante un agente de IA.
+Proyecto de Machine Learning que predice la compatibilidad de amistad entre dos usuarios de una red social tipo fotolog ("Yo, Adolescente"). Una red neuronal (PyTorch) recibe 5 números sobre un par de usuarios y devuelve un score entre 0 y 1: si es mayor o igual a 0.5, el par se considera compatible.
 
-## 🎯 Objetivos del Proyecto
+El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone mediante una API REST documentada con Swagger.
 
-1. **Estandarizar el entorno de desarrollo** para la creación y experimentación de modelos.
-2. **Reemplazar la heurística actual del ExploreController** por un modelo entrenado sobre datos reales de `friendships` y perfiles.
-3. **Exponer el modelo como API REST** documentada automáticamente con Swagger.
-4. **Integración con Agentes Autónomos** para la ejecución programada de tareas, testing y optimización.
-5. **Control de versiones y reproducibilidad** del pipeline de ML.
+## 🎯 Objetivos del proyecto
+
+1. Estandarizar el entorno para crear, entrenar y evaluar un modelo de red neuronal.
+2. Seguir el flujo **dataset → configuración → entrenamiento → interfaz**.
+3. Exponer el modelo entrenado como API REST (FastAPI + Swagger).
+4. Aplicar buenas prácticas: arquitectura MVC, patrones de diseño, tests y entorno de prueba autónomo (CI).
+5. Dejar documentación para que un agente de IA pueda trabajar en el proyecto (`docs/AGENT.md`, `docs/memoria.md`).
 
 ## 🏗️ Arquitectura
 
 - **Patrón**: MVC
 - **API**: FastAPI (Swagger automático en `/docs`)
 - **Base de datos**: PostgreSQL (SQLAlchemy ORM + Alembic para migraciones)
-- **Framework de ML**: scikit-learn
-- **Patrones de diseño aplicados**:
+- **Red neuronal**: PyTorch
+- **Patrones de diseño**:
   - **Repository** — aísla el acceso a datos (`app/repositories/`)
   - **Factory** — centraliza la carga del modelo entrenado (`app/ml/model_factory.py`)
-  - **Service Layer** — separa la lógica de negocio de los controllers
+  - **Service Layer** — separa la lógica de negocio de los controllers (`app/services/`)
   - **Dependency Injection** — nativo de FastAPI, para inyectar sesión de DB y servicios
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura del proyecto
+
+```text
 .
 ├── app/
-│ ├── main.py # entrypoint FastAPI
-│ ├── config.py # configuración (env vars, DB)
-│ ├── database.py # conexión PostgreSQL
-│ ├── controllers/ # C — endpoints/routers
-│ ├── models/ # M — entidades ORM (SQLAlchemy)
-│ ├── views/ # V — schemas Pydantic (request/response)
-│ ├── services/ # lógica de negocio
-│ ├── repositories/ # patrón Repository
-│ └── ml/ # pipeline de ML (data, train, evaluate, factory)
+│   ├── main.py                  # entrypoint FastAPI
+│   ├── config.py                # configuración (variables de entorno)
+│   ├── database.py              # conexión a PostgreSQL
+│   ├── controllers/             # C — endpoints
+│   ├── models/                  # M — entidades ORM (Profile, Friendship)
+│   ├── views/                   # V — schemas Pydantic
+│   ├── services/                # lógica de negocio
+│   ├── repositories/            # patrón Repository
+│   └── ml/                      # CompatibilityNet y ModelFactory
+├── alembic/                     # migraciones de base de datos
 ├── data/
-│ ├── raw/ # datos originales (no modificar)
-│ └── processed/ # datos preprocesados
-├── models/ # modelos entrenados (.pkl)
-├── tests/
-│ ├── unit/
-│ └── integration/ # entorno de prueba del agente (no el IDE)
-├── notebooks/
-├── alembic/ # migraciones de base de datos
-├── AGENT.md
-├── memoria.md
-├── comandos.md
-├── Skill.md
+│   └── splits.npz               # split train/val/test
+├── docs/                        # AGENT.md, memoria.md, comandos.md, etc.
+├── models/
+│   └── compatibility_net.pt     # pesos entrenados (state_dict)
+├── results/                     # resultados de la búsqueda de arquitectura
+├── scripts/
+│   ├── features.py              # cálculo de las 5 features
+│   ├── split_dataset_csv.py     # arma el split desde los CSV sintéticos
+│   ├── train_neural_net.py      # entrenamiento
+│   ├── evaluate_model.py        # evaluación
+│   ├── colab_busqueda_arquitectura.py
+│   ├── feedback_loop.py
+│   └── exportar_sintetico_csv.py
+├── tests/                       # tests unitarios e integración
+├── notebooks/                   # notebook de Colab (red_friendship.ipynb)
+├── generar_friendships.py       # genera friendships sintéticas
+├── procesar_dataset.py          # procesa el dataset sintético
+├── profiles_unificado.csv       # 2000 perfiles sintéticos
+├── friendships_unificado.csv    # 8000 amistades sintéticas
+├── sintetico_features.csv       # 8000 filas: 5 features + etiqueta
 ├── requirements.txt
-└── .gitignore
+└── requirements-dev.txt
+```
 
-## 🛠️ Requisitos Previos
+## 🛠️ Requisitos previos
 
-- Python 3.10+
+- Python 3.12 (la versión que usa el CI)
 - PostgreSQL
 - Git
 
 ## 🚀 Puesta en marcha
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Completá en `.env` la variable `DATABASE_URL` con tus credenciales de PostgreSQL, aplicá las migraciones y levantá la API:
+
+```powershell
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
 Swagger disponible en `http://localhost:8000/docs`.
 
-## 🔗 Contexto
+## 📊 Dataset
 
-Este proyecto usa como fuente de datos las tablas `friendships` y perfiles del proyecto [Yo Adolescente](../yo-adolescente), un fotolog retro. El objetivo final es predecir compatibilidad entre dos usuarios a partir de sus intereses y patrones de interacción.
+El dataset es **sintético**, generado con Mockaroo y procesado con los scripts del repo:
 
-## 📌 Estado
+| Archivo | Contenido |
+|---|---|
+| `profiles_unificado.csv` | 2000 perfiles |
+| `friendships_unificado.csv` | 8000 pares (4000 amigos y 4000 no amigos) |
+| `sintetico_features.csv` | 8000 filas con las 5 features y la etiqueta `y` |
 
-Boilerplate en construcción. La arquitectura MVC + API + base de datos está definida; falta:
-- Definir dataset y features reales
-- Entrenar el primer modelo baseline
-- Migraciones de Alembic
-- Tests unitarios e integración
+**Features** (en este orden, que es el orden de entrada de la red):
 
+| Feature | Qué mide |
+|---|---|
+| `similitud_intereses` | Jaccard entre los intereses de ambos perfiles |
+| `diff_activity` | Diferencia absoluta de `activity_score` |
+| `similitud_tags_posts` | Jaccard entre los hashtags de sus posts |
+| `tiene_tags_posts` | 1 si ambos tienen al menos un tag de posts, 0 si no |
+| `mismo_avatar_subcultura` | 1 si comparten la misma subcultura, 0 si no |
 
+**Etiqueta**: `is_mutual` (1 = compatible, 0 = no compatible).
 
-## Modelo de predicción: red neuronal (PyTorch)
+**Split** (`scripts/split_dataset_csv.py`): 70 / 15 / 15 estratificado por clase.
 
-Reemplaza la versión anterior basada en LogisticRegression (scikit-learn).
+| Conjunto | Ejemplos | Positivos |
+|---|---|---|
+| Train | 5600 | 2800 |
+| Validación | 1200 | 600 |
+| Test | 1200 | 600 |
 
-**Arquitectura** (`app/ml/model.py`, clase `CompatibilityNet`):
-- Linear(5→8) + ReLU + Dropout(0.3)
-- Linear(8→4) + ReLU + Dropout(0.2)
-- Linear(4→1) + Sigmoid
+## ⚙️ Configuración de la red
 
-**Entrenamiento** (`scripts/train_neural_net.py`):
-- Optimizador Adam (lr=0.001, weight_decay=1e-4)
-- Loss: BCELoss
+**Arquitectura** (`app/ml/model.py`, clase `CompatibilityNet`): perceptrón multicapa (MLP) feedforward totalmente conectado, 18 neuronas y 89 parámetros.
+
+| Capa | Neuronas | Detalle |
+|---|---|---|
+| Entrada | 5 | Las 5 features |
+| Oculta 1 | 8 | Linear 5→8, ReLU, Dropout 0.3 |
+| Oculta 2 | 4 | Linear 8→4, ReLU, Dropout 0.2 |
+| Salida | 1 | Linear 4→1, Sigmoid |
+
+**Hiperparámetros** (`scripts/train_neural_net.py`):
+
+- Optimizador: Adam (learning rate 0.001, weight decay 1e-4)
+- Función de pérdida: BCELoss (clasificación binaria)
 - Batch size: 16
-- Hasta 200 épocas, con early stopping (paciencia 20 épocas sobre val_loss)
-- Split 70/15/15 estratificado (`scripts/split_dataset.py`), guardado en `data/splits.npz`
-- Pesos entrenados guardados en `models/compatibility_net.pt` (solo `state_dict`)
+- Hasta 200 épocas, con early stopping (paciencia de 20 épocas sobre `val_loss`)
+- Umbral de decisión: 0.5
 
-**Features** (las mismas 5 usadas por el modelo anterior, ver `scripts/train_model.py`):
-`similitud_intereses`, `diff_activity`, `similitud_tags_posts`, `tiene_tags_posts`, `mismo_avatar_subcultura`
+## 🏋️ Entrenamiento y evaluación
 
-**Evaluación** (`scripts/evaluate_model.py`), test set (15 ejemplos, umbral 0.50):
+El entrenamiento se ejecuta en **Google Colab** (GPU), con el notebook `notebooks/red_friendship.ipynb`, que corre los mismos scripts del repo desde la raíz del proyecto:
 
-| Clase          | Precision | Recall | F1   |
-|----------------|-----------|--------|------|
-| no_compatible  | 0.83      | 0.62   | 0.71 |
-| compatible     | 0.67      | 0.86   | 0.75 |
-
-Accuracy: 0.73. Mejora respecto a la LogisticRegression anterior, que casi no distinguía la clase `no_compatible` (recall ~0 con cualquier umbral razonable).
-
-**Flujo de scripts**:
-```bash
-python scripts/split_dataset.py
+```powershell
+python scripts/split_dataset_csv.py
 python scripts/train_neural_net.py
 python scripts/evaluate_model.py
 ```
 
-## 🔄 Feedback Loop — Ciclo de Retroalimentación Manual
+Los pesos entrenados se guardan en `models/compatibility_net.pt` (solo el `state_dict`), y el split en `data/splits.npz`. Las features no se escalan, así que la API carga el modelo sin ninguna transformación adicional.
 
-Durante el desarrollo del predictor de compatibilidad se ejecutó un ciclo iterativo completo de **evaluación → detección de problema → ajuste → reentrenamiento**, que mejoró significativamente la calidad del modelo.
+**Resultados en el conjunto de test** (1200 ejemplos, umbral 0.50):
 
-### Fase 1: Evaluación Inicial (LogisticRegression)
+| Clase | Precision | Recall | F1 |
+|---|---|---|---|
+| no_compatible | 0.79 | 0.84 | 0.81 |
+| compatible | 0.83 | 0.77 | 0.80 |
 
-El primer modelo entrenado fue una regresión logística con 3 features iniciales:
-- `similitud_intereses`
-- `diff_activity`
-- `misma_subcultura`
+Accuracy: 0.81. Entre una corrida y otra los valores varían en centésimas.
 
-Métricas iniciales con umbral 0.35:
-- **Precision:** 0.60
-- **Recall:** 1.00
+## 🔬 Ajuste de arquitectura
 
-**Problema detectado:** Al variar el umbral de decisión (0.5 → 0.35 → 0.25), el modelo saltaba abruptamente de "casi todo negativo" a "casi todo positivo" sin encontrar un punto de equilibrio intermedio. Esto indicaba un sesgo grave en los datos o una característica con poder discriminatorio excesivo.
+Si la evaluación falla, el proceso prevé ajustar la arquitectura y reentrenar. Para comprobar si la arquitectura actual era un límite, `scripts/colab_busqueda_arquitectura.py` compara 10 configuraciones (distintos tamaños de capas y dropout) y una regresión logística de referencia, con validación cruzada de 3 folds sobre los 8000 ejemplos.
 
-### Fase 2: Detección del Problema Real
+| Arquitectura | Dropout | AUC media | AUC desvío | F1 media |
+|---|---|---|---|---|
+| 16-8-4 | 0.0 | 0.8424 | 0.0097 | 0.8115 |
+| 8 | 0.2 | 0.8421 | 0.0095 | 0.8114 |
+| Regresión logística | — | 0.8421 | 0.0096 | 0.8114 |
+| 8 | 0.0 | 0.8420 | 0.0093 | 0.8114 |
+| 16-8 | 0.2 | 0.8416 | 0.0091 | 0.8114 |
+| 32-16 | 0.2 | 0.8412 | 0.0092 | 0.8115 |
+| 8-4 | 0.0 | 0.8410 | 0.0084 | 0.8114 |
+| 8-4 | 0.2 | 0.8409 | 0.0083 | 0.8114 |
+| 16-8 | 0.0 | 0.8405 | 0.0089 | 0.8114 |
+| 16-8-4 | 0.2 | 0.8403 | 0.0098 | 0.8115 |
+| 32-16 | 0.0 | 0.8399 | 0.0092 | 0.8114 |
 
-La raíz del problema se identificó en la **generación de pares negativos**:
+**Conclusión:** todas las configuraciones, incluida la regresión logística, dan un AUC de alrededor de 0.84. La diferencia entre la primera y la segunda (0.0002) está muy por debajo del desvío estándar (0.0097), así que ninguna arquitectura mejora de forma medible a las otras. Se mantiene la arquitectura 5→8→4→1. Los resultados completos están en `results/resultados_arquitectura_sintetico_features.csv`.
 
-- El dataset contenía **444 usuarios totales**, pero solo **19 usuarios "activos"** (con al menos un post público).
-- Los pares negativos se generaban aleatoriamente sin considerar esta concentración.
-- Consecuencia: la mayoría de pares negativos nunca incluían usuarios activos, mientras que la mayoría de pares positivos sí.
-- La feature `tiene_tags_posts` (booleano sobre si ambos usuarios tenían posts) **separaba casi perfectamente el label por sí sola**, generando una falsa ilusión de 100% precision/recall sin generalizar.
+## ⚠️ Limitaciones
 
-Esto es un **sesgo de distribución**: el modelo aprendía a diferenciar entre "ambos con posts" vs "al menos uno sin posts", no compatibilidad real.
+El dataset es sintético y la etiqueta depende sobre todo de `similitud_intereses`; las otras features aportan muy poca señal. Por eso las métricas reflejan qué tan bien la red aprendió la regla del generador de datos, y no cómo se comportaría con amistades reales. Tampoco hay diferencias entre arquitecturas, porque la red usa una sola feature de manera efectiva.
 
-### Fase 3: Ajuste Aplicado
+## 🔄 Feedback loop
 
-**Cambios en la generación de datos** (`scripts/extract_from_yo_adolescente.py`):
+`scripts/feedback_loop.py` permite reentrenar ajustando hiperparámetros cuando la evaluación no alcanza. El flujo completo (predecir, confirmar el valor real, reentrenar y ver métricas antes y después) todavía no está disponible como interfaz.
 
-1. **Rebalanceo de negativos:** Modificar la lógica para que el 90% (`PROP_ACTIVOS=0.9`) de los pares negativos se genere entre usuarios que también tengan posts, reflejando la distribución real.
+## 🧪 Tests y CI
 
-2. **Nuevas features extraídas:** Agregar dos features derivadas de posts públicos:
-   - `similitud_tags_posts` — similaridad de Jaccard sobre los tags agregados de todos los posts del usuario.
-   - `tiene_tags_posts` — booleano: ambos usuarios tienen al menos un post.
+```powershell
+pip install -r requirements-dev.txt
+flake8 app scripts tests
+pytest tests/ -v
+```
 
-3. **Limpieza de datos:** Borrar todas las friendships y características calculadas con la lógica anterior y re-extraer desde cero con la lógica corregida.
+El workflow de GitHub Actions (`.github/workflows/ci.yml`) instala las dependencias, corre flake8 y ejecuta pytest en cada push, y funciona como entorno de prueba autónomo.
 
-### Fase 4: Reentrenamiento y Resultado
+## 📌 Estado
 
-Con el dataset corregido y features depuradas:
+Hecho:
+- Dataset sintético, split y features
+- Red neuronal entrenada y evaluada
+- Búsqueda de arquitectura
+- API con base de datos, repository, service layer y tests
+- CI en GitHub Actions
 
-- **Dataset:** 94 ejemplos totales (47 positivos, 47 negativos) — balanceado.
-- **Features finales:** 5 en total (`similitud_intereses`, `diff_activity`, `similitud_tags_posts`, `tiene_tags_posts`, `mismo_avatar_subcultura`).
-- **Modelo:** Migración de LogisticRegression a **red neuronal (CompatibilityNet, PyTorch)** para mejor capacidad de generalización.
-
-**Resultados finales (test set, umbral 0.50):**
-
-| Métrica        | Valor |
-|---|---|
-| **Accuracy**   | 0.73 |
-| **Precision (compatible)**   | 0.67 |
-| **Recall (compatible)**       | 0.86 |
-| **F1 (compatible)**           | 0.75 |
-| **Precision (no_compatible)** | 0.83 |
-| **Recall (no_compatible)**    | 0.62 |
-| **F1 (no_compatible)**        | 0.71 |
-
-**Mejora significativa:** La LogisticRegression anterior no lograba distinguir la clase `no_compatible` (recall ≈ 0 con cualquier umbral), mientras que el nuevo modelo logra un equilibrio mucho mejor (F1 = 0.71 vs F1 = 0 previamente).
-
-### Resumen del Ciclo
-
-Este ciclo manual permitió identificar y corregir un **sesgo fundamental en la generación de datos** que habría perpetuado un modelo con baja generalización. La lección: la calidad del dataset es más determinante que la complejidad del modelo para problemas de clasificación.
+Pendiente:
+- Interfaz para predecir, confirmar el valor real, reentrenar y ver métricas
+- Feedback loop integrado a la API
+- Actualizar el resto de la documentación (`docs/`)
