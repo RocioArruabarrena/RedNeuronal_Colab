@@ -4,9 +4,9 @@ Arma el split train/val/test (70/15/15) estratificado por clase,
 a partir de los CSV sinteticos unificados (profiles_unificado.csv +
 friendships_unificado.csv) en vez de leer de PostgreSQL.
 
-Reutiliza calcular_features() y FEATURE_NAMES de train_model.py para
+Reutiliza calcular_features() y FEATURE_NAMES de features.py para
 que el split use exactamente la misma logica de features que el
-entrenamiento final.
+resto del proyecto.
 
 Correr desde la raiz del proyecto:
     python scripts/split_dataset_csv.py
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from scripts.train_model import calcular_features, FEATURE_NAMES
+from scripts.features import calcular_features, FEATURE_NAMES
 
 PROFILES_CSV = "profiles_unificado.csv"
 FRIENDSHIPS_CSV = "friendships_unificado.csv"
@@ -103,7 +103,8 @@ if __name__ == "__main__":
     X, y = cargar_features_y_labels(perfiles, FRIENDSHIPS_CSV)
 
     print(
-        f"Dataset total: {len(y)} ejemplos ({y.sum()} positivos, {len(y) - y.sum()} negativos)"
+        f"Dataset total: {len(y)} ejemplos "
+        f"({y.sum()} positivos, {len(y) - y.sum()} negativos)"
     )
 
     X_train, X_val, X_test, y_train, y_val, y_test = split_dataset(X, y)
