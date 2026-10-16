@@ -2,7 +2,7 @@
 
 Predictor de compatibilidad de amistad para **Yo Adolescente**. Dado un par de
 perfiles, la API devuelve un score de compatibilidad (0 a 1) calculado por una
-red neuronal entrenada con datos reales de amistades ya existentes.
+red neuronal entrenada con un **dataset sintético** de 8000 pares.
 
 Stack: **FastAPI** (API) + **PostgreSQL/SQLAlchemy/Alembic** (persistencia) +
 **PyTorch** (red neuronal) + **scikit-learn** (split de datos y métricas).
@@ -27,12 +27,17 @@ Red-Neuronal/
 │   ├── repositories/
 │   ├── models/
 │   └── ml/
-├── scripts/                → scripts de línea de comandos (ETL, train, eval)
+├── scripts/                → scripts de línea de comandos (features, split, train, eval)
 ├── alembic/                → migraciones de base de datos
 ├── data/                   → splits.npz (train/val/test ya armado)
 ├── models/                 → compatibility_net.pt (pesos entrenados)
+├── results/                → resultados de la búsqueda de arquitectura
+├── docs/                   → AGENT.md / memoria.md / Skill.md / comandos.md / esta explicación
+├── tests/
+├── generar_friendships.py, procesar_dataset.py   → procesan el dataset sintético
+├── profiles_unificado.csv, friendships_unificado.csv, sintetico_features.csv
 ├── requirements.txt
-├── README.md / AGENT.md / memoria.md / Skill.md / comandos.md
+└── README.md
 ```
 
 La idea de fondo: **`app/`** es el servicio en producción (lo que corre
@@ -74,7 +79,7 @@ def health_check():
 ### 2.2 `app/config.py`
 
 ```python
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "postgresql://usuario:password@localhost:5432/redes_neuronales_db"
@@ -82,8 +87,7 @@ class Settings(BaseSettings):
     api_title: str = "Predictor de Compatibilidad de Amistad API"
     api_version: str = "1.0.0"
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 settings = Settings()
 ```
@@ -93,8 +97,7 @@ settings = Settings()
   archivo `.env` sin tocar código. Ej: si existe una variable de entorno
   `DATABASE_URL`, pisa el valor default de `database_url`.
 - `model_path`: acá es donde se define **qué archivo de modelo se carga** —
-  hoy apunta a `compatibility_net.pt` (la red neuronal), antes apuntaba (en
-  otra rama de decisión) al `.pkl` de LogisticRegression.
+  hoy apunta a `compatibility_net.pt` (la red neuronal).
 - `settings = Settings()`: se instancia **una sola vez** al importar el
   módulo, y todo el resto del proyecto importa este mismo objeto (`from
   app.config import settings`) — patrón singleton implícito de Python (los
@@ -223,15 +226,19 @@ class FriendshipRepository:
 ### 2.7 `app/services/compatibility_service.py` — el corazón de la predicción
 
 Funciones sueltas (a nivel de módulo, no de clase) que calculan las 5
-features, **idénticas** a las de `scripts/train_model.py` (esto es crítico:
-si el cálculo de features en producción difiere del usado en entrenamiento,
-el modelo predice basura):
+features, **idénticas** a las de `scripts/features.py` (esto es crítico: si el
+cálculo de features en producción difiere del usado en entrenamiento, el
+modelo predice basura):
 
 ```python
 def _extraer_subcultura(intereses): ...   # busca un tag "subcultura:X" en la lista
 def _jaccard(set_a, set_b): ...           # |intersección| / |unión|
 def _calcular_features(perfil_a, perfil_b): ...  # arma las 5 features en orden
 ```
+
+Ojo: esta lógica existe en **dos lugares** (`scripts/features.py` para el
+entrenamiento y este service para la inferencia). Si se cambia una, hay que
+cambiar la otra.
 
 - `_jaccard`: mide similitud entre dos conjuntos. Si `A={"emo","musica"}` y
   `B={"emo","arte"}`, la intersección es `{"emo"}` (1) y la unión es
@@ -270,16 +277,17 @@ class CompatibilityService:
 - `ModelFactory.get_model(...)` en el `__init__`: cada vez que se **crea** un
   `CompatibilityService` (una vez por cada request, ver `get_service` en el
   controller), pide el modelo al Factory. Como el Factory cachea el modelo
-  (ver 2.8), esto no recarga el archivo `.pt` en cada request — solo la
+  (ver 2.9), esto no recarga el archivo `.pt` en cada request — solo la
   primera vez.
 - `torch.tensor([features], ...)`: el `[features]` (lista dentro de lista) es
   porque PyTorch espera un **batch**, aunque sea de un solo ejemplo. La forma
   final es `(1, 5)` → 1 fila, 5 columnas (las 5 features).
 - `torch.no_grad()`: le dice a PyTorch que no calcule gradientes acá — estamos
   prediciendo, no entrenando, así que ahorra memoria y cómputo.
-- `score >= 0.5`: el umbral de decisión, coherente con el que se usó en
-  `evaluate_model.py` para la red neuronal (distinto del 0.35 que se usaba
-  para la LogisticRegression vieja).
+- `score >= 0.5`: el umbral de decisión, el mismo que usa `evaluate_model.py`.
+- Las features **no se escalan** antes de entrar a la red, igual que en el
+  entrenamiento. Si algún día se entrena con un `StandardScaler`, hay que
+  aplicarlo también acá.
 - Guarda la predicción en la base **siempre**, incluso si nadie se lo pidió
   explícitamente — es un efecto secundario del endpoint, útil para
   auditoría/histórico de predicciones.
@@ -308,8 +316,7 @@ class CompatibilityNet(nn.Module):
   (no ganarías nada por tener varias capas).
 - `Dropout(0.3)`: durante entrenamiento, apaga aleatoriamente el 30% de las
   neuronas de esa capa en cada pasada. Es una técnica anti-overfitting —
-  fuerza a la red a no depender de neuronas puntuales, importante acá porque
-  el dataset es chico (94 ejemplos) y overfitea fácil. En modo `eval()` (o
+  fuerza a la red a no depender de neuronas puntuales. En modo `eval()` (o
   sea, en predicción) el Dropout no hace nada, se usan todas las neuronas.
 - `Linear(8, 4) + ReLU + Dropout(0.2)`: segunda capa oculta, reduce a 4
   neuronas, con menos dropout (la red ya está más "comprimida" acá, apagar
@@ -319,6 +326,9 @@ class CompatibilityNet(nn.Module):
   compatibilidad.
 - `forward(self, x)`: define cómo fluyen los datos por la red. `nn.Sequential`
   ya encadena las capas, así que acá solo se llama una vez.
+- En total son 18 neuronas y 89 parámetros: `(5×8+8) + (8×4+4) + (4×1+1) =
+  48 + 36 + 5 = 89`. Es una red muy chica, adecuada para datos tabulares con
+  5 features.
 
 ### 2.9 `app/ml/model_factory.py`
 
@@ -381,18 +391,17 @@ class Friendship(Base):
 - Estas dos clases son el mapeo objeto-relacional (ORM): cada instancia de
   `Profile` es una fila de la tabla `profiles`.
 - `interests` vs `tags_agregados`: se separaron a propósito en dos columnas
-  (ver migración 3.2) para poder calcular `similitud_intereses` (sobre
-  `interests`, lo que el usuario cargó en su perfil) y `similitud_tags_posts`
-  (sobre `tags_agregados`, lo que efectivamente publicó) como **dos features
-  independientes** — si se mezclaran, se perdería esa distinción.
-- `is_mutual`: `True` cuando la fila representa una amistad real confirmada
-  (`status='accepted'` en Yo Adolescente); `False` para pares negativos
-  generados sintéticamente O para predicciones nuevas guardadas por la API
-  (no hay forma de distinguir ambos casos solo mirando esta columna — es una
+  (ver migración en la sección 3) para poder calcular `similitud_intereses`
+  (sobre `interests`) y `similitud_tags_posts` (sobre `tags_agregados`) como
+  **dos features independientes** — si se mezclaran, se perdería esa
+  distinción.
+- `is_mutual`: `True` cuando la fila representa una amistad confirmada; `False`
+  para pares negativos o para predicciones nuevas guardadas por la API (no hay
+  forma de distinguir ambos casos solo mirando esta columna — es una
   limitación implícita del diseño actual).
-- `compatibility_score`: `nullable=True` porque las filas cargadas por
-  `extract_from_yo_adolescente.py` (los pares de entrenamiento) no tienen
-  score — solo lo tienen las filas que crea `save_prediction` en producción.
+- `compatibility_score`: `nullable=True` porque las filas de entrenamiento no
+  tienen score — solo lo tienen las filas que crea `save_prediction` en
+  producción.
 
 ---
 
@@ -401,16 +410,14 @@ class Friendship(Base):
 Alembic versiona los cambios de esquema de la base, para poder aplicarlos
 (`upgrade`) o revertirlos (`downgrade`) de forma ordenada.
 
-### 3.1 `55847864579c_crear_profiles_y_friendships.py`
+### 3.1 Migración `crear_profiles_y_friendships`
 Primera migración: crea las tablas `profiles` y `friendships` desde cero, con
 las columnas originales (sin `tags_agregados` todavía). `downgrade()` hace lo
 inverso: borra los índices y las tablas, en el orden correcto (primero
 `friendships`, que depende de `profiles` via FK, después `profiles`).
 
-### 3.2 `a1b2c3d4e5f6_agregar_tags.py`
+### 3.2 Migración `agregar_tags`
 ```python
-down_revision = '55847864579c'   # esta migración depende de la anterior
-
 def upgrade():
     op.add_column('profiles', sa.Column('tags_agregados', sa.JSON(), nullable=True))
 
@@ -418,86 +425,62 @@ def downgrade():
     op.drop_column('profiles', 'tags_agregados')
 ```
 Segunda migración: agrega la columna `tags_agregados` (para separar hashtags
-de posts de los intereses de perfil, como se explicó en 2.10). `down_revision`
-es cómo Alembic sabe el **orden**: esta migración solo se puede aplicar
-después de la que crea las tablas.
+de posts de los intereses de perfil, como se explicó en 2.10). Su
+`down_revision` apunta a la migración anterior, que es cómo Alembic sabe el
+**orden**: esta migración solo se puede aplicar después de la que crea las
+tablas.
 
 ---
 
-## 4. `scripts/` — todo lo que se corre a mano, fuera de la API
+## 4. Dataset sintético y `scripts/`
 
-### 4.1 `extract_from_yo_adolescente.py` — ETL desde Yo Adolescente
+### 4.1 El dataset sintético
 
-Este es el script más largo. Se conecta a la base **SQLite** de Yo Adolescente
-(un proyecto Laravel distinto) y carga datos transformados a la base
-**PostgreSQL** de este proyecto.
+El proyecto se entrena **solo con datos sintéticos**:
 
-- `leer_usuarios_sqlite`: trae `id, username, tags, bio, mood, location,
-  is_online, is_moderator, is_public, pixel_avatar` de usuarios no borrados
-  (`deleted_at IS NULL`).
-- `leer_posts_por_usuario_sqlite`: recorre **todos los posts públicos y no
-  borrados**, y por cada `user_id` acumula: el set de hashtags usados
-  (`tags`), la suma de likes y comments recibidos, y la cantidad de posts.
-  Esto es la materia prima para `tags_agregados` y `activity_score`.
-- `leer_friendships_sqlite`: trae `requester_id, receiver_id, status` — el
-  esquema real de Yo Adolescente (no `user_id/friend_id` como acá).
-- `calcular_activity_score`: fórmula heurística 0-100: hasta 50 puntos por
-  engagement (likes+comments, tope en 100), hasta 30 puntos por cantidad de
-  posts (tope en 10 posts → 30 puntos), +10 si el perfil es público, +10 si
-  tiene bio. Los topes son arbitrarios (dice el propio comentario del código)
-  — pensados para no dejar que un usuario híper-activo rompa la escala.
-- `extraer_intereses`: parsea `tags` (que puede venir como JSON o como texto
-  separado por comas, según cómo se haya cargado en Yo Adolescente) y le suma
-  un tag `"subcultura:<pixel_avatar>"` — así la subcultura del avatar entra
-  al mismo set de "intereses" sin mezclarse con los hashtags de posts.
-- `extraer_tags_posts`: simplemente devuelve ordenados los hashtags
-  acumulados en `posts_por_usuario`, para la columna `tags_agregados`.
-- **Generación de negativos** (la parte más delicada del script): en vez de
-  elegir pares al azar entre **todos** los usuarios, genera el 90%
-  (`PROP_ACTIVOS=0.9`) de los pares negativos **entre usuarios que también
-  tienen posts** — esto es la corrección al sesgo que se detectó: si los
-  negativos salieran de la población general, casi ninguno caería entre dos
-  usuarios "activos" (con posts), y el modelo aprendería a usar
-  `tiene_tags_posts` como atajo para distinguir la clase, en vez de aprender
-  de la similitud real de intereses.
-- `main()`: conecta a SQLite, lee todo, arma un `mapa_ids` (id viejo de Yo
-  Adolescente → id nuevo de `Profile`), y hace upsert (actualiza si el
-  `username` ya existe, inserta si no) tanto de `Profile` como de
-  `Friendship` (positivos con `is_mutual=True`, negativos con
-  `is_mutual=False`), evitando duplicar pares que ya estén cargados.
+- `profiles_unificado.csv`: 2000 perfiles, generados con Mockaroo.
+- `friendships_unificado.csv`: 8000 pares (4000 amigos y 4000 no amigos).
+- `generar_friendships.py` y `procesar_dataset.py` (en la raíz) generan y
+  procesan las amistades sintéticas.
+- `scripts/exportar_sintetico_csv.py` genera `sintetico_features.csv`: 8000
+  filas con las 5 features y la etiqueta `y`.
 
-### 4.2 `train_model.py` — el modelo viejo (LogisticRegression), referencia histórica
+Una limitación importante: la etiqueta sintética depende sobre todo de
+`similitud_intereses` (AUC ~0.84 por sí sola); las demás features aportan muy
+poca señal. Por eso las métricas miden qué tan bien la red aprendió la regla
+del generador, no cómo se comportaría con amistades reales.
 
-Sigue en el repo a propósito, como registro del punto de partida.
+### 4.2 `features.py` — las 5 features
 
-- `extraer_subcultura`, `jaccard`, `calcular_features`: **idénticas** en
-  lógica a las de `compatibility_service.py` (la versión de producción) —
-  de hecho `split_dataset.py` importa `calcular_features` **desde este
-  archivo**, no lo duplica.
-- `main()`: trae todos los `Friendship` y `Profile` de la base, arma `X`
-  (features) e `y` (labels), hace un split 80/20 estratificado
-  (`train_test_split(..., stratify=y)` — asegura que la proporción de
-  positivos/negativos sea igual en train y test).
-- **Imprime un cruce diagnóstico**: cuenta cuántos positivos/negativos tienen
-  `tiene_tags_posts=1` vs `0` — esto es justamente lo que permitió detectar
-  el sesgo que se corrigió después en `extract_from_yo_adolescente.py`.
-- Escala con `StandardScaler` (necesario para LogisticRegression, no para la
-  red neuronal — por eso la integración actual no usa scaler).
-- Entrena con `class_weight="balanced"` (compensa si las clases no están
-  50/50 exactas) y prueba varios umbrales de decisión, quedándose con 0.35.
-- Guarda con `joblib.dump(...)` un diccionario con el modelo, el scaler, el
-  umbral y los nombres de features — todo junto, para que quien cargue el
-  `.pkl` tenga todo el contexto necesario para predecir correctamente.
+Contiene `FEATURE_NAMES` (el orden de entrada de la red) y las funciones
+`extraer_subcultura`, `jaccard` y `calcular_features(perfil_a, perfil_b)`.
+Funciona con cualquier objeto que tenga los atributos `interests`,
+`activity_score` y `tags_agregados`, así que sirve tanto para filas de la base
+como para perfiles leídos de un CSV.
 
-### 4.3 `split_dataset.py` — arma el split fijo para la red neuronal
+Las 5 features:
 
-- `load_features_and_labels()`: reconstruye `X, y` reusando
-  `calcular_features` de `train_model.py` (no la reimplementa), así el
-  split usa exactamente los mismos pares y features.
+- `similitud_intereses`: Jaccard entre los intereses de ambos perfiles
+  (incluye el tag `subcultura:X`).
+- `diff_activity`: diferencia absoluta de `activity_score` (va de 0 a 100,
+  mientras el resto va de 0 a 1).
+- `similitud_tags_posts`: Jaccard entre los hashtags de sus posts.
+- `tiene_tags_posts`: 1 si ambos tienen al menos un tag de posts, 0 si no.
+- `mismo_avatar_subcultura`: 1 si comparten el mismo tag `subcultura:X`.
+
+### 4.3 `split_dataset_csv.py` — arma el split fijo
+
+- `cargar_perfiles(path)`: lee `profiles_unificado.csv` y arma un dict
+  `id → perfil` con los atributos que espera `calcular_features`
+  (`interests`, `activity_score`, `tags_agregados`). A `interests` le suma un
+  tag `subcultura:<pixel_avatar>` para que `mismo_avatar_subcultura` funcione.
+- `cargar_features_y_labels(perfiles, path)`: recorre
+  `friendships_unificado.csv`, calcula las 5 features de cada par y toma
+  `is_mutual` como etiqueta (1 o 0).
 - `split_dataset(...)`: dos llamadas a `train_test_split` en cadena para
   lograr 70/15/15: primero separa 70% train / 30% resto, después parte ese
-  30% a la mitad (15%/15%) para val y test. Ambas llamadas usan
-  `stratify=y`, para no desbalancear ninguna de las tres partes.
+  30% a la mitad (15%/15%) para val y test. Ambas usan `stratify=y`, para no
+  desbalancear ninguna de las tres partes. Resultado: 5600 / 1200 / 1200.
 - Guarda todo en `data/splits.npz` con `np.savez(...)` — un solo archivo
   binario con los 6 arrays (`X_train, y_train, X_val, y_val, X_test, y_test`)
   más los nombres de features, para que el entrenamiento y la evaluación
@@ -557,10 +540,34 @@ scripts sueltos.
   (`classification_report`, que da precision/recall/F1 de **ambas** clases)
   con el umbral final elegido (0.50).
 
-### 4.7 `feedback_loop.py` — el ciclo automatizado de reajuste
+Resultado vigente sobre el test sintético (1200 ejemplos): accuracy 0.81;
+compatible con precision 0.83, recall 0.77 y F1 0.80; no_compatible con
+precision 0.79, recall 0.84 y F1 0.81.
 
-Este es el que se agregó último. Reusa funciones de los dos scripts
-anteriores en vez de duplicar lógica.
+### 4.7 `colab_busqueda_arquitectura.py` — compara arquitecturas
+
+- Lee `sintetico_features.csv` (5 features + etiqueta `y`) y valida que no
+  haya valores vacíos ni etiquetas distintas de 0/1.
+- Define una versión configurable de `CompatibilityNet` (tamaños de capas y
+  dropout) y una lista de 10 configuraciones: `8-4`, `16-8`, `16-8-4`,
+  `32-16` y `8`, cada una con dropout 0.0 y 0.2.
+- Evalúa cada configuración con **validación cruzada estratificada** (3
+  folds en modo dataset grande), escalando las features con `StandardScaler`
+  dentro de cada fold, y compara también contra una **regresión logística** de
+  referencia.
+- Reporta AUC media, desvío de la AUC, accuracy y F1, ordenados por AUC, y
+  guarda el resultado en `results/resultados_arquitectura_sintetico_features.csv`.
+- Al final indica si la diferencia entre la mejor y la segunda configuración
+  está dentro de un desvío estándar (no concluyente).
+
+Resultado: las 10 redes y la regresión logística dan un AUC de alrededor de
+0.84, y la diferencia entre la mejor y la segunda (0.0002) es mucho menor que
+el desvío (0.0097). Ninguna arquitectura mejora de forma medible, así que se
+mantiene 5→8→4→1.
+
+### 4.8 `feedback_loop.py` — el ciclo automatizado de reajuste
+
+Reusa funciones de los scripts anteriores en vez de duplicar lógica.
 
 ```python
 F1_MINIMO = 0.70
@@ -572,7 +579,7 @@ AJUSTE_WEIGHT_DECAY = 1e-5
 - Lo evalúa sobre test con el umbral de clasificación estándar (0.50).
 - **Si F1 ≥ 0.70**: no hace nada más, el modelo actual está bien.
 - **Si F1 < 0.70**: aplica un **único ajuste fijo** (no busca en un rango de
-  hiperparámetros, solo prueba una combinación puntual: más épocas margen
+  hiperparámetros, solo prueba una combinación puntual: más épocas de margen
   para converger + menos weight_decay, o sea menos regularización) y
   reentrena una sola vez, llamando a `entrenar(...)` con esos valores nuevos.
 - **Compara** el F1 del modelo reentrenado contra el F1 del modelo original:
@@ -587,6 +594,9 @@ AJUSTE_WEIGHT_DECAY = 1e-5
   ...`), a diferencia de los otros scripts que se corren con
   `python scripts/archivo.py`.
 
+El feedback loop completo con interfaz (predecir, confirmar el valor real,
+reentrenar y ver métricas antes y después) está pendiente.
+
 ---
 
 ## 5. `requirements.txt`
@@ -599,10 +609,10 @@ psycopg2-binary      → driver de conexión a PostgreSQL que usa SQLAlchemy
 alembic              → migraciones de base de datos
 pydantic             → validación de datos (schemas de request/response)
 pydantic-settings    → BaseSettings (config.py)
-scikit-learn         → train_test_split, métricas (precision/recall/F1), y el train_model.py viejo
-pandas               → (usado en análisis/exploración de datos)
+scikit-learn         → train_test_split, métricas (precision/recall/F1), búsqueda de arquitectura
+pandas               → lectura de los CSV sintéticos
 numpy                → arrays para features y splits
-joblib               → serializar el modelo viejo (LogisticRegression + scaler) en train_model.py
+joblib               → quedó de la versión anterior (LogisticRegression); ya no se usa
 torch                → PyTorch, la red neuronal (CompatibilityNet)
 pytest               → tests
 httpx                → cliente HTTP (usado por tests de FastAPI, TestClient)
@@ -615,33 +625,28 @@ python-dotenv        → carga variables desde .env
 
 ## 6. Flujo completo, de punta a punta
 
-1. **Yo Adolescente** (proyecto Laravel separado) tiene usuarios, posts y
-   friendships reales en SQLite.
-2. **`extract_from_yo_adolescente.py`** lee esos datos, calcula
-   `interests`, `tags_agregados` y `activity_score`, genera pares negativos
-   balanceados y no sesgados, y carga todo en PostgreSQL como `Profile` y
-   `Friendship`.
-3. **`train_model.py`** (referencia histórica) calcula 5 features por cada
-   par de perfiles y entrena una LogisticRegression — sirvió para validar
-   que las features tenían sentido (mirando los coeficientes) antes de pasar
-   a una red neuronal.
-4. **`split_dataset.py`** reusa esas mismas features y arma un split
-   70/15/15 fijo, guardado en `data/splits.npz`.
-5. **`train_neural_net.py`** entrena `CompatibilityNet` (definida en
+1. **Dataset sintético**: `profiles_unificado.csv` y `friendships_unificado.csv`
+   (generados con Mockaroo y procesados con `generar_friendships.py` y
+   `procesar_dataset.py`) son el punto de partida.
+2. **`features.py`** calcula las 5 features de cada par de perfiles.
+3. **`split_dataset_csv.py`** arma un split 70/15/15 fijo, guardado en
+   `data/splits.npz`.
+4. **`train_neural_net.py`** entrena `CompatibilityNet` (definida en
    `app/ml/model.py`) sobre ese split, con early stopping, y guarda los
-   pesos en `models/compatibility_net.pt`.
-6. **`evaluate_model.py`** mide qué tan bien predice sobre el test set
+   pesos en `models/compatibility_net.pt`. El entrenamiento se corre en
+   Google Colab con GPU.
+5. **`evaluate_model.py`** mide qué tan bien predice sobre el test set
    (nunca visto durante el entrenamiento).
-7. **`feedback_loop.py`** automatiza el paso "si la evaluación no alcanza un
-   mínimo, reajustar y reentrenar" — el requisito de feedback loop de la
-   consigna.
-8. **La API** (`app/`) carga ese mismo `.pt` vía `ModelFactory`, recibe
+6. **`colab_busqueda_arquitectura.py`** comprueba si otra arquitectura mejora
+   el resultado (no mejora), y **`feedback_loop.py`** automatiza el paso "si
+   la evaluación no alcanza un mínimo, reajustar y reentrenar".
+7. **La API** (`app/`) carga ese mismo `.pt` vía `ModelFactory`, recibe
    `POST /compatibility/predict` con dos IDs de perfil, calcula las mismas
    5 features (en `compatibility_service.py`, con la misma lógica que
-   `train_model.py`), corre la red neuronal, y devuelve un score — guardando
+   `features.py`), corre la red neuronal, y devuelve un score — guardando
    además esa predicción en la base como una nueva fila de `Friendship`.
 
 Todo el proyecto gira alrededor de una idea central: **las features que ve
 la red al predecir en producción tienen que ser matemáticamente idénticas a
-las que vio al entrenar** — por eso tanto código se reusa entre scripts
-(`calcular_features` compartida) en vez de reimplementarse.
+las que vio al entrenar** — por eso la lógica de las features se concentra
+en `scripts/features.py` y se replica con cuidado en el service.
