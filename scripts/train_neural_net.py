@@ -6,9 +6,11 @@ Correr desde la raiz del proyecto, con el venv activado:
     python scripts/train_neural_net.py
 
 La funcion entrenar() tambien es usada por scripts/feedback_loop.py
-para reentrenar con hiperparametros ajustados si la evaluacion falla.
+para reentrenar con hiperparametros ajustados si la evaluacion falla,
+y por app/services/retrain_service.py para el fine-tuning con feedback.
 """
 
+import copy
 import sys
 from pathlib import Path
 
@@ -52,15 +54,26 @@ def entrenar(
     weight_decay: float = WEIGHT_DECAY,
     batch_size: int = BATCH_SIZE,
     verbose: bool = True,
+    modelo_inicial: CompatibilityNet | None = None,
+    restaurar_mejor: bool = True,
 ) -> tuple[CompatibilityNet, float]:
-    """Entrena CompatibilityNet y devuelve (modelo con mejores pesos, mejor_val_loss)."""
+    """Entrena CompatibilityNet y devuelve (modelo, mejor_val_loss).
+
+    - modelo_inicial: si se pasa, se entrena una COPIA de ese modelo
+      (fine-tuning) en vez de arrancar con pesos nuevos.
+    - restaurar_mejor: si es True devuelve los pesos de la epoca con mejor
+      val_loss; si es False devuelve los de la ultima epoca.
+    """
     train_ds = a_tensor_dataset(X_train, y_train)
     val_ds = a_tensor_dataset(X_val, y_val)
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=len(val_ds), shuffle=False)
 
-    modelo = CompatibilityNet(input_dim=X_train.shape[1])
+    if modelo_inicial is not None:
+        modelo = copy.deepcopy(modelo_inicial)
+    else:
+        modelo = CompatibilityNet(input_dim=X_train.shape[1])
     criterio = nn.BCELoss()
     optimizador = torch.optim.Adam(
         modelo.parameters(), lr=learning_rate, weight_decay=weight_decay
@@ -97,7 +110,7 @@ def entrenar(
         if loss_val < mejor_val_loss:
             mejor_val_loss = loss_val
             epocas_sin_mejora = 0
-            mejor_estado = modelo.state_dict()
+            mejor_estado = copy.deepcopy(modelo.state_dict())
         else:
             epocas_sin_mejora += 1
             if epocas_sin_mejora >= patience:
@@ -108,7 +121,7 @@ def entrenar(
                     )
                 break
 
-    if mejor_estado is not None:
+    if restaurar_mejor and mejor_estado is not None:
         modelo.load_state_dict(mejor_estado)
 
     return modelo, mejor_val_loss

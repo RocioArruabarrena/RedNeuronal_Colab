@@ -53,12 +53,11 @@ class CompatibilityService:
         self.model = ModelFactory.get_model(settings.model_path)
 
     def predict(self, user_id: int, friend_id: int) -> dict:
+        """Calcula la compatibilidad. Es solo lectura: no escribe en la base."""
         user, friend = self._get_profiles(user_id, friend_id)
 
         features = self._build_features(user, friend)
         score = self._score(features)
-
-        self.repository.save_prediction(user_id, friend_id, score)
 
         return {
             "user_id": user_id,

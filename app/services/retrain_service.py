@@ -24,8 +24,13 @@ SPLIT_PATH = RAIZ / "data" / "splits.npz"
 METRICS_PATH = RAIZ / "models" / "ultimas_metricas.json"
 
 UMBRAL = 0.5
-MIN_FEEDBACK = 5  # mínimo de feedbacks para poder reentrenar
-FEEDBACK_REPEAT = 20  # cuántas veces se repite el feedback en el train
+MIN_FEEDBACK = 5  # mínimo de pares distintos con feedback para reentrenar
+FEEDBACK_REPEAT = 100  # cuántas veces se repite el feedback en el train
+SINTETICOS_MUESTRA = 300  # filas sintéticas que se mezclan para no "olvidar"
+FT_EPOCHS = 60  # épocas fijas del fine-tuning
+FT_LEARNING_RATE = 1e-3
+MARGEN_TEST_F1 = 0.02  # caída máxima de F1 en test que se tolera
+SEED = 42
 
 
 def _metricas(modelo, X: np.ndarray, y: np.ndarray) -> dict:
@@ -44,6 +49,18 @@ def _metricas(modelo, X: np.ndarray, y: np.ndarray) -> dict:
     }
 
 
+def _ultimo_por_par(feedback: list) -> list:
+    """Se queda con la respuesta más reciente de cada par (usuario, amigo).
+
+    Así una corrección pisa a la anterior y no quedan filas contradictorias
+    (mismas features con etiquetas distintas), que el modelo no puede aprender.
+    """
+    ultimos = {}
+    for f in sorted(feedback, key=lambda f: f.id):
+        ultimos[(f.user_id, f.friend_id)] = f
+    return list(ultimos.values())
+
+
 def _feedback_a_arrays(feedback: list) -> tuple[np.ndarray, np.ndarray]:
     X = np.array(
         [[getattr(f, col) for col in FEATURE_COLUMNS] for f in feedback],
@@ -54,17 +71,17 @@ def _feedback_a_arrays(feedback: list) -> tuple[np.ndarray, np.ndarray]:
 
 
 class RetrainService:
-    """Reentrena la red con el dataset sintético + el feedback acumulado."""
+    """Ajusta (fine-tuning) la red actual con el feedback acumulado."""
 
     def __init__(self, repository: FriendshipRepository):
         self.repository = repository
 
     def retrain(self) -> dict:
-        feedback = self.repository.get_all_feedback()
+        feedback = _ultimo_por_par(self.repository.get_all_feedback())
         if len(feedback) < MIN_FEEDBACK:
             raise ValueError(
-                f"Hacen falta al menos {MIN_FEEDBACK} feedbacks para reentrenar "
-                f"(hay {len(feedback)})"
+                f"Hacen falta al menos {MIN_FEEDBACK} pares distintos con "
+                f"respuesta para actualizar el modelo (hay {len(feedback)})"
             )
         if not SPLIT_PATH.exists():
             raise FileNotFoundError(f"No se encontró el split en {SPLIT_PATH}")
@@ -76,18 +93,42 @@ class RetrainService:
         test_before = _metricas(modelo_actual, split["X_test"], split["y_test"])
         feedback_before = _metricas(modelo_actual, X_fb, y_fb)
 
-        # El feedback se repite para que pese frente a los miles de sintéticos
-        X_rep = np.tile(X_fb, (FEEDBACK_REPEAT, 1))
-        y_rep = np.tile(y_fb, FEEDBACK_REPEAT)
-        X_train = np.concatenate([split["X_train"], X_rep])
-        y_train = np.concatenate([split["y_train"], y_rep])
+        # Feedback repetido + una muestra de sintéticos, para que el modelo
+        # aprenda de las correcciones sin olvidar lo que ya sabía
+        rng = np.random.default_rng(SEED)
+        n = min(SINTETICOS_MUESTRA, len(split["X_train"]))
+        idx = rng.choice(len(split["X_train"]), size=n, replace=False)
+        X_train = np.concatenate(
+            [split["X_train"][idx], np.tile(X_fb, (FEEDBACK_REPEAT, 1))]
+        )
+        y_train = np.concatenate(
+            [split["y_train"][idx], np.tile(y_fb, FEEDBACK_REPEAT)]
+        )
 
+        # Fine-tuning desde el modelo actual, épocas fijas y sin restaurar
+        # el "mejor" estado (se mediría con sintéticos y descartaría lo aprendido)
         modelo_nuevo, _ = entrenar(
-            X_train, y_train, split["X_val"], split["y_val"], verbose=False
+            X_train,
+            y_train,
+            split["X_val"],
+            split["y_val"],
+            max_epochs=FT_EPOCHS,
+            patience=FT_EPOCHS + 1,
+            learning_rate=FT_LEARNING_RATE,
+            verbose=False,
+            modelo_inicial=modelo_actual,
+            restaurar_mejor=False,
         )
         modelo_nuevo.eval()
         test_after = _metricas(modelo_nuevo, split["X_test"], split["y_test"])
         feedback_after = _metricas(modelo_nuevo, X_fb, y_fb)
+
+        if test_after["f1"] < test_before["f1"] - MARGEN_TEST_F1:
+            raise ValueError(
+                "El modelo ajustado empeoró en los datos de prueba "
+                f"(F1 {test_before['f1']} -> {test_after['f1']}), "
+                "así que se conserva el modelo anterior"
+            )
 
         self._guardar_modelo(modelo_nuevo)
 

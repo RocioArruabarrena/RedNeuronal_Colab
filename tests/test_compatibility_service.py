@@ -202,17 +202,13 @@ class TestPredict:
 
         assert resultado["compatibility_score"] == 0.1235
 
-    def test_guarda_la_prediccion_en_el_repositorio(self, repository):
+    def test_predecir_no_escribe_en_el_repositorio(self, repository):
         repository.get_profile.side_effect = [_perfil(), _perfil()]
         service, _ = _service_con_score(repository, 0.9)
 
         service.predict(1, 2)
 
-        repository.save_prediction.assert_called_once()
-        args = repository.save_prediction.call_args[0]
-        assert args[0] == 1
-        assert args[1] == 2
-        assert args[2] == pytest.approx(0.9)
+        repository.save_prediction.assert_not_called()
 
     def test_usuario_no_encontrado_lanza_value_error(self, repository):
         repository.get_profile.side_effect = [None, _perfil()]

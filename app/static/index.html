@@ -321,7 +321,7 @@
         show("retrain-msg", "Listo, el modelo se actualizó.", "ok");
       } catch (e) {
         show("retrain-msg",
-          e.status === 409 ? "Todavía no hay suficientes respuestas para actualizar el modelo (mínimo 5)." : e.message,
+                    e.message,
           "err");
       } finally {
         $("btn-retrain").disabled = false;
