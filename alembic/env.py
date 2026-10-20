@@ -13,10 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import Base
 from app.config import settings
 
-# NOTA: cuando definas tus modelos, importalos acá ANTES de
-# target_metadata = Base.metadata, para que Alembic los detecte
-# en el autogenerate. Ejemplo:
-# from app.models import Perfil, Friendship
+# Importar acá TODOS los modelos, ANTES de target_metadata = Base.metadata,
+# para que Alembic los detecte en el autogenerate.
+from app.models.profile import Profile  # noqa: F401
+from app.models.friendship import Friendship  # noqa: F401
+from app.models.feedback import Feedback  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -31,10 +32,6 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-
-
-from app.models.profile import Profile
-from app.models.friendship import Friendship
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata

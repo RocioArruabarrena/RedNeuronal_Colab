@@ -1,0 +1,33 @@
+{
+  "trained_at": "2026-10-17T14:01:51.136715+00:00",
+  "feedback_count": 5,
+  "train_size": 5700,
+  "test_before": {
+    "accuracy": 0.8125,
+    "precision": 0.8391,
+    "recall": 0.7733,
+    "f1": 0.8049,
+    "auc": 0.8324
+  },
+  "test_after": {
+    "accuracy": 0.8067,
+    "precision": 0.8286,
+    "recall": 0.7733,
+    "f1": 0.8,
+    "auc": 0.8335
+  },
+  "feedback_before": {
+    "accuracy": 0.6,
+    "precision": 0.6667,
+    "recall": 0.6667,
+    "f1": 0.6667,
+    "auc": 0.6667
+  },
+  "feedback_after": {
+    "accuracy": 0.6,
+    "precision": 0.6667,
+    "recall": 0.6667,
+    "f1": 0.6667,
+    "auc": 0.5
+  }
+}

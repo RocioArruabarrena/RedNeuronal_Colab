@@ -2,6 +2,7 @@ import torch
 
 from app.repositories.friendship_repository import FriendshipRepository
 from app.ml.model_factory import ModelFactory
+from app.models.feedback import FEATURE_COLUMNS
 from app.config import settings
 
 
@@ -52,16 +53,10 @@ class CompatibilityService:
         self.model = ModelFactory.get_model(settings.model_path)
 
     def predict(self, user_id: int, friend_id: int) -> dict:
-        user = self.repository.get_profile(user_id)
-        friend = self.repository.get_profile(friend_id)
-
-        if not user or not friend:
-            raise ValueError("Perfil de usuario o amigo no encontrado")
+        user, friend = self._get_profiles(user_id, friend_id)
 
         features = self._build_features(user, friend)
-        features_tensor = torch.tensor([features], dtype=torch.float32)
-        with torch.no_grad():
-            score = float(self.model(features_tensor).item())
+        score = self._score(features)
 
         self.repository.save_prediction(user_id, friend_id, score)
 
@@ -71,6 +66,40 @@ class CompatibilityService:
             "compatibility_score": round(score, 4),
             "is_compatible": score >= 0.5,
         }
+
+    def save_feedback(self, user_id: int, friend_id: int, real_label: bool) -> dict:
+        """Guarda features + etiqueta real para reentrenar después."""
+        user, friend = self._get_profiles(user_id, friend_id)
+
+        features = self._build_features(user, friend)
+        score = self._score(features)
+
+        record = self.repository.save_feedback(
+            user_id, friend_id, features, score, real_label
+        )
+
+        return {
+            "id": record.id,
+            "user_id": user_id,
+            "friend_id": friend_id,
+            "predicted_score": round(score, 4),
+            "real_label": real_label,
+            "features": dict(zip(FEATURE_COLUMNS, features)),
+        }
+
+    def _get_profiles(self, user_id: int, friend_id: int):
+        user = self.repository.get_profile(user_id)
+        friend = self.repository.get_profile(friend_id)
+
+        if not user or not friend:
+            raise ValueError("Perfil de usuario o amigo no encontrado")
+
+        return user, friend
+
+    def _score(self, features: list[float]) -> float:
+        features_tensor = torch.tensor([features], dtype=torch.float32)
+        with torch.no_grad():
+            return float(self.model(features_tensor).item())
 
     def _build_features(self, user, friend) -> list[float]:
         return _calcular_features(user, friend)

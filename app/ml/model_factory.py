@@ -21,3 +21,9 @@ class ModelFactory:
             cls._instance.load_state_dict(state_dict)
             cls._instance.eval()
         return cls._instance
+
+    @classmethod
+    def reload(cls, model_path: str):
+        """Descarta el modelo en memoria y vuelve a cargarlo desde disco."""
+        cls._instance = None
+        return cls.get_model(model_path)

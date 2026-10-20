@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from app.models.feedback import FEATURE_COLUMNS, Feedback
 from app.models.friendship import Friendship
 from app.models.profile import Profile
 
@@ -18,6 +19,29 @@ class FriendshipRepository:
     def save_prediction(self, user_id: int, friend_id: int, score: float) -> Friendship:
         record = Friendship(
             user_id=user_id, friend_id=friend_id, compatibility_score=score
+        )
+        self.db.add(record)
+        self.db.commit()
+        self.db.refresh(record)
+        return record
+
+    def get_all_feedback(self) -> list[Feedback]:
+        return self.db.query(Feedback).order_by(Feedback.id).all()
+
+    def save_feedback(
+        self,
+        user_id: int,
+        friend_id: int,
+        features: list[float],
+        predicted_score: float,
+        real_label: bool,
+    ) -> Feedback:
+        record = Feedback(
+            user_id=user_id,
+            friend_id=friend_id,
+            predicted_score=predicted_score,
+            real_label=real_label,
+            **dict(zip(FEATURE_COLUMNS, features)),
         )
         self.db.add(record)
         self.db.commit()
