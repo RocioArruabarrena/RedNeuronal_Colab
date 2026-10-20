@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>¿Qué tan compatibles son? | Yo, Adolescente</title>
+  <style>
+    /* Pegá acá los valores reales de tu app.css */
+    :root {
+      --c-text: #1a1a2e;
+      --c-muted: #5c5c7a;
+      --c-magenta: #e6007e;
+      --c-magenta-dark: #b8005f;
+      --c-blue: #1e5bd8;
+      --c-border: #1a1a2e;
+      --c-bg: #fdf3fa;
+      --c-card: #ffffff;
+      --c-soft: #ffe3f3;
+      --c-ok: #0a7a3d;
+      --c-warn: #b36b00;
+      --c-err: #c4001f;
+      --font-mono: "Courier New", Courier, monospace;
+      --font-display: "Trebuchet MS", Verdana, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: var(--font-mono); background: var(--c-bg); color: var(--c-text); line-height: 1.5;
+      background-image: radial-gradient(var(--c-soft) 1px, transparent 1px); background-size: 14px 14px;
+    }
+    header {
+      background: var(--c-magenta); color: #fff; padding: 1.75rem 1rem; text-align: center;
+      border-bottom: 4px solid var(--c-border);
+    }
+    header h1 { margin: 0 0 .4rem; font-family: var(--font-display); font-size: 1.9rem; letter-spacing: -.5px; text-shadow: 3px 3px 0 var(--c-border); }
+    header p { margin: 0 auto; max-width: 560px; }
+    main { max-width: 720px; margin: 0 auto; padding: 1rem; }
+    .card {
+      background: var(--c-card); border: 2px solid var(--c-border); padding: 1.25rem; margin: 1.25rem 0;
+      box-shadow: 5px 5px 0 var(--c-border);
+    }
+    .card h2 { margin: 0 0 .5rem; font-family: var(--font-display); font-size: 1.15rem; color: var(--c-blue); }
+    .step {
+      display: inline-flex; align-items: center; justify-content: center; width: 1.8rem; height: 1.8rem;
+      background: var(--c-magenta); color: #fff; border: 2px solid var(--c-border); font-size: .9rem; margin-right: .5rem;
+    }
+    .hint { color: var(--c-muted); font-size: .9rem; margin: .25rem 0 .75rem; }
+    ol.how { margin: .5rem 0 0; padding-left: 1.3rem; color: var(--c-muted); }
+    ol.how li::marker { color: var(--c-magenta); font-weight: 700; }
+    .fields { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: .75rem; }
+    .field { flex: 1 1 200px; }
+    .field label { display: block; font-weight: 700; margin-bottom: .25rem; }
+    .field input {
+      width: 100%; padding: .55rem; border: 2px solid var(--c-border); font-size: 1rem; font-family: var(--font-mono);
+      background: #fff; color: var(--c-text);
+    }
+    .field input:focus { outline: 3px solid var(--c-blue); outline-offset: 0; }
+    button {
+      padding: .6rem 1.1rem; border: 2px solid var(--c-border); font-size: .95rem; font-family: var(--font-mono); font-weight: 700;
+      cursor: pointer; background: var(--c-magenta); color: #fff; box-shadow: 3px 3px 0 var(--c-border);
+    }
+    button:hover:not(:disabled) { background: var(--c-magenta-dark); }
+    button:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+    button.secondary { background: #fff; color: var(--c-blue); }
+    button.secondary:hover:not(:disabled) { background: var(--c-soft); }
+    button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+    .actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+    .msg { margin-top: .6rem; min-height: 1.2rem; font-size: .92rem; }
+    .ok { color: var(--c-ok); } .err { color: var(--c-err); } .warn { color: var(--c-warn); }
+    #result { display: none; margin-top: 1rem; padding: 1rem; background: var(--c-soft); border: 2px dashed var(--c-magenta); }
+    #result .verdict { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; margin: 0 0 .6rem; }
+    .bar { height: 18px; background: #fff; border: 2px solid var(--c-border); }
+    .bar > div { height: 100%; width: 0; transition: width .5s steps(10); background: linear-gradient(90deg, var(--c-magenta), var(--c-blue)); }
+    .bar-label { display: flex; justify-content: space-between; font-size: .8rem; color: var(--c-muted); margin-top: .3rem; }
+    #step2 { opacity: .5; pointer-events: none; }
+    #step2.active { opacity: 1; pointer-events: auto; }
+    details.card summary { cursor: pointer; font-weight: 700; font-family: var(--font-display); color: var(--c-blue); }
+    details.card h3 { font-family: var(--font-display); color: var(--c-magenta); }
+    table { border-collapse: collapse; width: 100%; margin-top: .75rem; font-size: .85rem; }
+    th, td { border: 2px solid var(--c-border); padding: .4rem .5rem; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: var(--c-soft); }
+    dl { margin: .75rem 0 0; font-size: .85rem; color: var(--c-muted); }
+    dt { font-weight: 700; color: var(--c-text); margin-top: .4rem; }
+    dd { margin: 0; }
+    footer { text-align: center; color: var(--c-muted); font-size: .8rem; padding: 1.5rem 1rem 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>¿Qué tan compatibles son?</h1>
+    <p>Una red neuronal analiza dos perfiles y estima si podrían llevarse bien como amigos.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>¿Cómo funciona?</h2>
+      <ol class="how">
+        <li>Elegís dos perfiles y la herramienta calcula su compatibilidad.</li>
+        <li>Nos contás si en la vida real se llevan bien o no.</li>
+        <li>Con tu respuesta, el modelo aprende y mejora sus próximas predicciones.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">1</span>Elegí a las dos personas</h2>
+      <p class="hint">Cada perfil tiene un número. Escribí el de cada persona y tocá "Calcular compatibilidad".</p>
+      <div class="fields">
+        <div class="field">
+          <label for="user_id">Perfil de la primera persona</label>
+          <input id="user_id" type="number" min="1" value="1">
+        </div>
+        <div class="field">
+          <label for="friend_id">Perfil de la segunda persona</label>
+          <input id="friend_id" type="number" min="1" value="2">
+        </div>
+      </div>
+      <button id="btn-predict">Calcular compatibilidad</button>
+      <div id="predict-msg" class="msg"></div>
+
+      <div id="result" aria-live="polite">
+        <p class="verdict" id="verdict"></p>
+        <div class="bar"><div id="bar-fill"></div></div>
+        <div class="bar-label"><span>0% (nada compatibles)</span><span id="score-text"></span><span>100% (muy compatibles)</span></div>
+        <p class="hint" id="explanation"></p>
+      </div>
+    </section>
+
+    <section class="card" id="step2">
+      <h2><span class="step">2</span>Ayudanos a mejorar: ¿se llevan bien de verdad?</h2>
+      <p class="hint">Primero calculá una compatibilidad. Después, si conocés a estas personas, contanos cómo es la realidad. Tu respuesta se guarda para que el modelo aprenda de sus errores.</p>
+      <div class="actions">
+        <button id="btn-yes" class="secondary" disabled>Sí, se llevan bien</button>
+        <button id="btn-no" class="secondary" disabled>No, no se llevan bien</button>
+      </div>
+      <div id="feedback-msg" class="msg"></div>
+    </section>
+
+    <details class="card">
+      <summary>Panel del modelo (para el equipo)</summary>
+      <p class="hint">Acá el modelo se vuelve a entrenar con todas las respuestas guardadas. Hacen falta al menos 5 respuestas. El botón no se usa en el día a día: es para actualizar el modelo cada tanto.</p>
+      <button id="btn-retrain">Actualizar el modelo con las respuestas</button>
+      <div id="retrain-msg" class="msg"></div>
+
+      <h3>Resultados del último entrenamiento</h3>
+      <div id="metrics-info" class="msg"></div>
+      <table id="metrics-table" hidden>
+        <thead>
+          <tr>
+            <th rowspan="2">Métrica</th>
+            <th colspan="2">Datos de prueba</th>
+            <th colspan="2">Respuestas de usuarios</th>
+          </tr>
+          <tr><th>Antes</th><th>Después</th><th>Antes</th><th>Después</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <dl>
+        <dt>Exactitud</dt><dd>De todas las predicciones, qué proporción acertó.</dd>
+        <dt>Precisión</dt><dd>Cuando dijo "compatibles", cuántas veces tenía razón.</dd>
+        <dt>Sensibilidad</dt><dd>De las parejas realmente compatibles, cuántas detectó.</dd>
+        <dt>F1</dt><dd>Un equilibrio entre precisión y sensibilidad.</dd>
+        <dt>AUC</dt><dd>Qué tan bien separa parejas compatibles de las que no lo son (1 es perfecto, 0.5 es azar).</dd>
+        <dt>Datos de prueba / Respuestas de usuarios</dt><dd>Con qué se midió cada columna: un conjunto reservado de antemano, o las respuestas que dieron los usuarios.</dd>
+      </dl>
+    </details>
+  </main>
+
+  <footer>Proyecto de redes neuronales. Las predicciones son estimaciones y pueden equivocarse.</footer>
+
+  <script>
+    const API = "/compatibility";
+    const $ = (id) => document.getElementById(id);
+    let lastPrediction = null;
+    let feedbackSent = 0;
+
+    const METRIC_NAMES = {
+      accuracy: "Exactitud", precision: "Precisión", recall: "Sensibilidad", f1: "F1", auc: "AUC",
+    };
+
+    function show(id, text, kind) {
+      const el = $(id);
+      el.textContent = text;
+      el.className = "msg " + (kind || "");
+    }
+
+    async function request(path, options) {
+      const res = await fetch(API + path, options);
+      let body = null;
+      try { body = await res.json(); } catch (_) {}
+      if (!res.ok) {
+        const err = new Error(typeof (body && body.detail) === "string" ? body.detail : "Algo salió mal (error " + res.status + ").");
+        err.status = res.status;
+        throw err;
+      }
+      return body;
+    }
+
+    function post(path, data) {
+      return request(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+    }
+
+    function describe(r) {
+      const pct = r.compatibility_score * 100;
+      if (r.is_compatible) {
+        if (pct >= 80) return { title: "¡Muy compatibles!", text: "Tienen mucho en común. Es muy probable que se lleven bien.", kind: "ok" };
+        return { title: "Son compatibles", text: "Hay varias cosas que los acercan, así que podrían llevarse bien.", kind: "ok" };
+      }
+      if (pct <= 20) return { title: "Poco compatibles", text: "Tienen pocas cosas en común. Es poco probable que congenien.", kind: "err" };
+      return { title: "Compatibilidad dudosa", text: "Hay algunas coincidencias, pero no las suficientes para asegurar que se lleven bien.", kind: "warn" };
+    }
+
+    function setFeedbackEnabled(enabled) {
+      $("btn-yes").disabled = $("btn-no").disabled = !enabled;
+      $("step2").classList.toggle("active", enabled);
+    }
+
+    $("btn-predict").addEventListener("click", async () => {
+      const user_id = parseInt($("user_id").value, 10);
+      const friend_id = parseInt($("friend_id").value, 10);
+      setFeedbackEnabled(false);
+      show("feedback-msg", "");
+      $("result").style.display = "none";
+
+      if (!user_id || !friend_id) {
+        show("predict-msg", "Escribí el número de perfil de las dos personas.", "err");
+        return;
+      }
+      if (user_id === friend_id) {
+        show("predict-msg", "Tienen que ser dos perfiles distintos.", "err");
+        return;
+      }
+
+      $("btn-predict").disabled = true;
+      show("predict-msg", "Calculando...", "");
+      try {
+        const r = await post("/predict", { user_id, friend_id });
+        lastPrediction = { user_id, friend_id, is_compatible: r.is_compatible };
+        const d = describe(r);
+        const pct = r.compatibility_score * 100;
+        $("verdict").textContent = d.title;
+        $("verdict").className = "verdict " + d.kind;
+        $("score-text").textContent = pct.toFixed(0) + "%";
+        $("explanation").textContent = d.text + " (Es una estimación del modelo, no una certeza.)";
+        $("result").style.display = "block";
+        $("bar-fill").style.width = "0";
+        requestAnimationFrame(() => { $("bar-fill").style.width = pct.toFixed(1) + "%"; });
+        show("predict-msg", "", "");
+        setFeedbackEnabled(true);
+      } catch (e) {
+        lastPrediction = null;
+        show("predict-msg",
+          e.status === 404 ? "No encontramos uno de esos perfiles. Revisá los números e intentá de nuevo." : e.message,
+          "err");
+      } finally {
+        $("btn-predict").disabled = false;
+      }
+    });
+
+    async function sendFeedback(real_label) {
+      if (!lastPrediction) return;
+      const { user_id, friend_id, is_compatible } = lastPrediction;
+      setFeedbackEnabled(false);
+      try {
+        await post("/feedback", { user_id, friend_id, real_label });
+        feedbackSent += 1;
+        const acerto = is_compatible === real_label;
+        show("feedback-msg",
+          (acerto ? "¡El modelo acertó! " : "El modelo se equivocó esta vez. ") +
+          "Gracias, tu respuesta quedó guardada y va a ayudar a mejorar las próximas predicciones. (Respuestas enviadas en esta visita: " + feedbackSent + ")",
+          acerto ? "ok" : "warn");
+        lastPrediction = null;
+      } catch (e) {
+        show("feedback-msg", e.message, "err");
+        setFeedbackEnabled(true);
+      }
+    }
+    $("btn-yes").addEventListener("click", () => sendFeedback(true));
+    $("btn-no").addEventListener("click", () => sendFeedback(false));
+
+    function fmt(v) {
+      return v === null || v === undefined ? "-" : Number(v).toFixed(3);
+    }
+
+    function renderMetrics(m) {
+      const tbody = $("metrics-table").querySelector("tbody");
+      tbody.innerHTML = "";
+      for (const k of Object.keys(METRIC_NAMES)) {
+        const tr = document.createElement("tr");
+        const cells = [METRIC_NAMES[k], m.test_before[k], m.test_after[k], m.feedback_before[k], m.feedback_after[k]];
+        cells.forEach((c, i) => {
+          const td = document.createElement("td");
+          td.textContent = i === 0 ? c : fmt(c);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+      $("metrics-table").hidden = false;
+      const fecha = new Date(m.trained_at).toLocaleString("es-AR");
+      show("metrics-info",
+        "Entrenado el " + fecha + ". Se usaron " + m.feedback_count + " respuestas de usuarios y " + m.train_size + " casos de entrenamiento.", "");
+    }
+
+    async function loadMetrics() {
+      try {
+        renderMetrics(await request("/metrics"));
+      } catch (e) {
+        $("metrics-table").hidden = true;
+        show("metrics-info", e.status === 404 ? "Todavía no se entrenó el modelo con respuestas de usuarios." : e.message, "");
+      }
+    }
+
+    $("btn-retrain").addEventListener("click", async () => {
+      $("btn-retrain").disabled = true;
+      show("retrain-msg", "Actualizando el modelo, puede tardar unos segundos...", "");
+      try {
+        renderMetrics(await post("/retrain", {}));
+        show("retrain-msg", "Listo, el modelo se actualizó.", "ok");
+      } catch (e) {
+        show("retrain-msg",
+          e.status === 409 ? "Todavía no hay suficientes respuestas para actualizar el modelo (mínimo 5)." : e.message,
+          "err");
+      } finally {
+        $("btn-retrain").disabled = false;
+      }
+    });
+
+    loadMetrics();
+  </script>
+</body>
+</html>
