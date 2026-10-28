@@ -36,3 +36,5 @@ sintetico_features.csv
 
 models/*.bak.pt
 models/ultimas_metricas.json
+models/*.bak.pt
+models/ultimas_metricas.json
