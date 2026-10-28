@@ -1,9 +1,13 @@
+from typing import Callable
+
 import torch
 
-from app.repositories.friendship_repository import FriendshipRepository
-from app.ml.model_factory import ModelFactory
-from app.models.feedback import FEATURE_COLUMNS
 from app.config import settings
+from app.ml.fabrica_modelo import ModelFactory
+from app.models.feedback import FEATURE_COLUMNS
+from app.repositories.contratos import RepositorioCompatibilidad
+
+UMBRAL_COMPATIBLE = 0.5
 
 
 def _extraer_subcultura(intereses: list[str] | None) -> str | None:
@@ -48,9 +52,28 @@ def _calcular_features(perfil_a, perfil_b) -> list[float]:
 
 
 class CompatibilityService:
-    def __init__(self, repository: FriendshipRepository):
+    """Predice la compatibilidad entre dos perfiles y registra feedback.
+
+    Depende de abstracciones, no de clases concretas: el repositorio (contrato),
+    el modelo y el cálculo de features se reciben por constructor. Si no se
+    pasan, usa los de siempre, así el controller no cambia.
+    """
+
+    def __init__(
+        self,
+        repository: RepositorioCompatibilidad,
+        model=None,
+        calculador_features: Callable[[object, object], list[float]] = (
+            _calcular_features
+        ),
+        umbral: float = UMBRAL_COMPATIBLE,
+    ):
         self.repository = repository
-        self.model = ModelFactory.get_model(settings.model_path)
+        self.model = (
+            model if model is not None else ModelFactory.get_model(settings.model_path)
+        )
+        self.calculador_features = calculador_features
+        self.umbral = umbral
 
     def predict(self, user_id: int, friend_id: int) -> dict:
         """Calcula la compatibilidad. Es solo lectura: no escribe en la base."""
@@ -63,7 +86,7 @@ class CompatibilityService:
             "user_id": user_id,
             "friend_id": friend_id,
             "compatibility_score": round(score, 4),
-            "is_compatible": score >= 0.5,
+            "is_compatible": score >= self.umbral,
         }
 
     def save_feedback(self, user_id: int, friend_id: int, real_label: bool) -> dict:
@@ -101,4 +124,4 @@ class CompatibilityService:
             return float(self.model(features_tensor).item())
 
     def _build_features(self, user, friend) -> list[float]:
-        return _calcular_features(user, friend)
+        return self.calculador_features(user, friend)

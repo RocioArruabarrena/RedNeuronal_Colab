@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models.friendship import Friendship
 from app.models.profile import Profile
-from app.repositories.friendship_repository import FriendshipRepository
+from app.repositories.repositorio_amistades import FriendshipRepository
 
 
 @pytest.fixture

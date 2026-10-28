@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.repositories.friendship_repository import FriendshipRepository
+from app.repositories.repositorio_amistades import FriendshipRepository
 from app.services.compatibility_service import CompatibilityService
 from app.services.metrics_service import MetricsService
-from app.services.retrain_service import RetrainService
+from app.services.servicio_reentrenamiento import RetrainService
 from app.views.compatibility_schema import (
     CompatibilityRequest,
     CompatibilityResponse,

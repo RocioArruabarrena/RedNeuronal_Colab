@@ -6,6 +6,7 @@ Uso, desde la raíz del repo:
 
 Con --reset borra friendships y profiles antes de cargar.
 """
+
 import argparse
 import csv
 import json
@@ -90,8 +91,7 @@ def main():
         db.commit()
 
         print(
-            f"Cargados {len(perfiles)} perfiles y "
-            f"{len(friendships)} friendships."
+            f"Cargados {len(perfiles)} perfiles y " f"{len(friendships)} friendships."
         )
 
 

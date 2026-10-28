@@ -21,7 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import torch
 
 from scripts.evaluate_model import DATA_PATH, MODEL_PATH, cargar_datos_test, evaluar
-from scripts.train_neural_net import cargar_split, entrenar
+from app.ml.entrenador import entrenar
+from scripts.entrenar_red import cargar_split
 
 F1_MINIMO = 0.70
 UMBRAL_CLASIFICACION = 0.50

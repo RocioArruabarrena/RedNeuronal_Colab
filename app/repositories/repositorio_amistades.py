@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session
+
 from app.models.feedback import FEATURE_COLUMNS, Feedback
 from app.models.friendship import Friendship
 from app.models.profile import Profile
+from app.repositories.contratos import RepositorioCompatibilidad
 
 
-class FriendshipRepository:
-    """Patrón Repository: aísla el acceso a datos de friendships/profiles."""
+class FriendshipRepository(RepositorioCompatibilidad):
+    """Patrón Repository: implementación SQLAlchemy de los dos contratos."""
 
     def __init__(self, db: Session):
         self.db = db

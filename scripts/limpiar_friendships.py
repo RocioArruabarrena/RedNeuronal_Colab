@@ -11,7 +11,9 @@ CONDICION = "id > 8000 AND compatibility_score IS NOT NULL"
 
 db = next(get_db())
 filas = db.execute(
-    text(f"SELECT id, user_id, friend_id, compatibility_score FROM friendships WHERE {CONDICION} ORDER BY id")
+    text(
+        f"SELECT id, user_id, friend_id, compatibility_score FROM friendships WHERE {CONDICION} ORDER BY id"
+    )
 ).fetchall()
 
 print(f"Se van a borrar {len(filas)} filas:")

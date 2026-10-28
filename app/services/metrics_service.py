@@ -1,9 +1,7 @@
 import json
 from pathlib import Path
 
-METRICS_PATH = (
-    Path(__file__).resolve().parents[2] / "models" / "ultimas_metricas.json"
-)
+METRICS_PATH = Path(__file__).resolve().parents[2] / "models" / "ultimas_metricas.json"
 
 
 class MetricsService:

@@ -12,7 +12,6 @@ from sklearn.model_selection import RepeatedStratifiedKFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
-
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 # CSV con las 5 features y la etiqueta "y" (en la raiz del repo).
@@ -90,9 +89,7 @@ def cargar_datos() -> tuple[np.ndarray, np.ndarray]:
         raise ValueError(f"Faltan columnas requeridas en el CSV: {missing_columns}")
 
     features = frame[FEATURE_NAMES].to_numpy(dtype=np.float32)
-    labels = pd.to_numeric(frame[LABEL_NAME], errors="raise").to_numpy(
-        dtype=np.int64
-    )
+    labels = pd.to_numeric(frame[LABEL_NAME], errors="raise").to_numpy(dtype=np.int64)
     if not np.isfinite(features).all():
         raise ValueError("El CSV contiene features vacias o no numericas.")
     if not np.isin(labels, [0, 1]).all():
@@ -122,9 +119,7 @@ def entrenar_red(
         torch.as_tensor(train_features, dtype=torch.float32),
         torch.as_tensor(train_labels, dtype=torch.float32).unsqueeze(1),
     )
-    loader = DataLoader(
-        dataset, batch_size=min(BATCH_SIZE, len(dataset)), shuffle=True
-    )
+    loader = DataLoader(dataset, batch_size=min(BATCH_SIZE, len(dataset)), shuffle=True)
     criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(
         model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY
@@ -142,16 +137,12 @@ def entrenar_red(
 
     model.eval()
     with torch.no_grad():
-        test_tensor = torch.as_tensor(
-            test_features, dtype=torch.float32, device=DEVICE
-        )
+        test_tensor = torch.as_tensor(test_features, dtype=torch.float32, device=DEVICE)
         scores = model(test_tensor).squeeze(1).cpu().numpy()
     return scores
 
 
-def _resumen_metricas(
-    labels: np.ndarray, scores: np.ndarray
-) -> dict[str, float]:
+def _resumen_metricas(labels: np.ndarray, scores: np.ndarray) -> dict[str, float]:
     predictions = (scores >= UMBRAL).astype(np.int64)
     return {
         "auc": roc_auc_score(labels, scores),
@@ -160,9 +151,7 @@ def _resumen_metricas(
     }
 
 
-def evaluar_configuraciones(
-    features: np.ndarray, labels: np.ndarray
-) -> pd.DataFrame:
+def evaluar_configuraciones(features: np.ndarray, labels: np.ndarray) -> pd.DataFrame:
     if MODO_DATASET_GRANDE:
         splitter = StratifiedKFold(
             n_splits=N_SPLITS,
@@ -182,9 +171,7 @@ def evaluar_configuraciones(
 
     for train_indices, test_indices in splitter.split(features, labels):
         scaler = StandardScaler()
-        train_scaled = scaler.fit_transform(features[train_indices]).astype(
-            np.float32
-        )
+        train_scaled = scaler.fit_transform(features[train_indices]).astype(np.float32)
         test_scaled = scaler.transform(features[test_indices]).astype(np.float32)
         train_labels = labels[train_indices]
         test_labels = labels[test_indices]
@@ -192,9 +179,7 @@ def evaluar_configuraciones(
         logistic = LogisticRegression(max_iter=1000, random_state=SEED)
         logistic.fit(train_scaled, train_labels)
         logistic_probabilities = logistic.predict_proba(test_scaled)[:, 1]
-        logistic_scores.append(
-            _resumen_metricas(test_labels, logistic_probabilities)
-        )
+        logistic_scores.append(_resumen_metricas(test_labels, logistic_probabilities))
 
         for hidden_layers, dropout in ARQUITECTURAS:
             probabilities = entrenar_red(
@@ -210,7 +195,9 @@ def evaluar_configuraciones(
 
     rows = []
     for (hidden_layers, dropout), fold_metrics in scores_por_configuracion.items():
-        rows.append(_fila_resultados("-".join(map(str, hidden_layers)), dropout, fold_metrics))
+        rows.append(
+            _fila_resultados("-".join(map(str, hidden_layers)), dropout, fold_metrics)
+        )
     rows.append(_fila_resultados("LogisticRegression", np.nan, logistic_scores))
 
     results = pd.DataFrame(rows)
@@ -246,8 +233,7 @@ def main() -> None:
     difference = float(best["AUC media"] - second["AUC media"])
     within_one_std = difference <= float(best["AUC desvio"])
     print(
-        "\nMejor configuracion: "
-        f"{best['arquitectura']} (dropout={best['dropout']})."
+        "\nMejor configuracion: " f"{best['arquitectura']} (dropout={best['dropout']})."
     )
     print(
         f"Diferencia con la segunda ({second['arquitectura']}): {difference:.4f}; "

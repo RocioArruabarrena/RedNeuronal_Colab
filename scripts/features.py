@@ -50,9 +50,7 @@ def calcular_features(perfil_a, perfil_b) -> list[float]:
     intereses_b = set(perfil_b.interests or [])
     similitud_intereses = jaccard(intereses_a, intereses_b)
 
-    diff_activity = abs(
-        (perfil_a.activity_score or 0) - (perfil_b.activity_score or 0)
-    )
+    diff_activity = abs((perfil_a.activity_score or 0) - (perfil_b.activity_score or 0))
 
     tags_posts_a = set(perfil_a.tags_agregados or [])
     tags_posts_b = set(perfil_b.tags_agregados or [])
