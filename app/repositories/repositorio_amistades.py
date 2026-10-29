@@ -3,11 +3,11 @@ from sqlalchemy.orm import Session
 from app.models.feedback import FEATURE_COLUMNS, Feedback
 from app.models.friendship import Friendship
 from app.models.profile import Profile
-from app.repositories.contratos import RepositorioCompatibilidad
+from app.repositories.contratos import RepositorioAmistades, RepositorioCompatibilidad
 
 
-class FriendshipRepository(RepositorioCompatibilidad):
-    """Patrón Repository: implementación SQLAlchemy de los dos contratos."""
+class FriendshipRepository(RepositorioCompatibilidad, RepositorioAmistades):
+    """Patrón Repository: implementación SQLAlchemy de los contratos."""
 
     def __init__(self, db: Session):
         self.db = db
