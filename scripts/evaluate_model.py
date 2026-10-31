@@ -1,7 +1,7 @@
 # scripts/evaluate_model.py
 """
 Evalúa CompatibilityNet ya entrenado sobre el set de test
-(data/splits.npz), igual que hacía train_model.py con LogisticRegression.
+(data/splits.npz).
 
 Correr desde la raiz del proyecto, con el venv activado:
     python scripts/evaluate_model.py

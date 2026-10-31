@@ -7,9 +7,12 @@ red neuronal entrenada con un **dataset sintético** de 8000 pares.
 Stack: **FastAPI** (API) + **PostgreSQL/SQLAlchemy/Alembic** (persistencia) +
 **PyTorch** (red neuronal) + **scikit-learn** (split de datos y métricas).
 
-Patrones de diseño usados: **Repository** (acceso a datos), **Factory**
-(instanciación del modelo), **Service Layer** (lógica de negocio separada del
-controller).
+Patrones y capas verificadas en el código: **Repository** (contratos e
+implementación de acceso a datos), **Factory** (carga y caché del modelo),
+**Service Layer** (casos de uso) y DI con `Depends` de FastAPI. MVC está
+adaptado a una API REST: `app/views/` son schemas Pydantic y la interfaz es un
+HTML estático. SOLID son principios, no un patrón ni una función nativa de
+FastAPI.
 
 ---
 
@@ -17,34 +20,31 @@ controller).
 
 ```
 Red-Neuronal/
-├── app/                    → código de la API (FastAPI + MVC)
-│   ├── main.py
-│   ├── config.py
-│   ├── database.py
-│   ├── controllers/
-│   ├── views/
-│   ├── services/
-│   ├── repositories/
-│   ├── models/
-│   └── ml/
-├── scripts/                → scripts de línea de comandos (features, split, train, eval)
-├── alembic/                → migraciones de base de datos
-├── data/                   → splits.npz (train/val/test ya armado)
-├── models/                 → compatibility_net.pt (pesos entrenados)
-├── results/                → resultados de la búsqueda de arquitectura
-├── docs/                   → AGENT.md / memoria.md / Skill.md / comandos.md / esta explicación
-├── tests/
-├── generar_friendships.py, procesar_dataset.py   → procesan el dataset sintético
-├── profiles_unificado.csv, friendships_unificado.csv, sintetico_features.csv
+├── app/                    → API, modelo, servicios y UI estática
+├── scripts/                → scripts versionados de datos, entrenamiento y evaluación
+├── alembic/                → configuración y tres migraciones
+├── data/splits.npz
+├── models/compatibility_net.pt
+├── docs/                   → AGENT.md, Skill.md, comandos.md, explicacion.md, memoria.md
+├── tests/                  → nueve módulos de tests
+├── profiles_unificado.csv
+├── friendships_unificado.csv
+├── generar_friendships.py
+├── procesar_dataset.py
 ├── requirements.txt
-└── README.md
+└── requirements-dev.txt
 ```
 
 La idea de fondo: **`app/`** es el servicio en producción (lo que corre
 `uvicorn`), y **`scripts/`** son herramientas que corrés a mano para preparar
 datos y entrenar el modelo que `app/` después consume. Son dos mundos que se
 tocan en un solo punto: el archivo `models/compatibility_net.pt` que
-`scripts/train_neural_net.py` escribe y `app/ml/model_factory.py` lee.
+`scripts/entrenar_red.py` escribe y `app/ml/fabrica_modelo.py` lee.
+
+`notebooks/` y `results/` no tienen archivos en este checkout. Los notebooks
+se entregan junto con el repo, pero no están commiteados. El CSV generado de
+features tampoco se versiona: `scripts/exportar_sintetico_csv.py` lo crea en
+la raíz y `.gitignore` lo excluye.
 
 ---
 
@@ -157,14 +157,25 @@ def predict_compatibility(
 - `APIRouter(prefix="/compatibility", ...)`: agrupa rutas bajo el prefijo
   `/compatibility`, así el endpoint real queda en `POST /compatibility/predict`.
 - `get_service(...)`: es una **cadena de dependencias**. FastAPI resuelve
-  `Depends(get_db)` primero (te da una sesión), y con esa sesión arma el
-  `Repository` y con el `Repository` arma el `Service`. Así el controller
-  nunca instancia nada a mano — todo se "inyecta".
+  `Depends(get_db)` primero y el proveedor arma `FriendshipRepository` y
+  `CompatibilityService`. Los proveedores de reentrenamiento y métricas
+  están en el mismo módulo. La creación del repositorio concreto ocurre en
+  esos proveedores, que son el punto de composición.
 - El controller **no tiene lógica de negocio**: solo recibe el request
   (validado por Pydantic vía `CompatibilityRequest`), le pasa los IDs al
   service, y traduce un `ValueError` (perfil no encontrado) a un HTTP 404.
-  Esta separación es la esencia del patrón MVC/Service Layer: el controller
-  es "tonto" a propósito.
+  Los endpoints de feedback/retrain/metrics también traducen errores de
+  dominio a respuestas HTTP (404, 409 o 500). La lógica de cálculo y
+  reentrenamiento permanece en los services.
+
+Rutas del controller:
+
+| Método y ruta | Caso de uso |
+|---|---|
+| `POST /compatibility/predict` | Predicción; 404 si falta un perfil |
+| `POST /compatibility/feedback` | Guarda feedback; responde 201 |
+| `POST /compatibility/retrain` | Fine-tuning; 409 si no hay feedback suficiente o se rechaza el modelo |
+| `GET /compatibility/metrics` | Lee las métricas; 404 si todavía no existen |
 
 ### 2.5 `app/views/compatibility_schema.py`
 
@@ -191,37 +202,26 @@ class CompatibilityResponse(BaseModel):
   API**, no vistas HTML — es la convención MVC adaptada a una API REST (la
   "vista" es la forma en la que se serializa la respuesta).
 
-### 2.6 `app/repositories/friendship_repository.py`
+### 2.6 `app/repositories/contratos.py` y `app/repositories/repositorio_amistades.py`
 
 ```python
-class FriendshipRepository:
+class FriendshipRepository(RepositorioCompatibilidad, RepositorioAmistades):
     def __init__(self, db: Session):
         self.db = db
 
     def get_profile(self, profile_id: int) -> Profile | None:
         return self.db.query(Profile).filter(Profile.id == profile_id).first()
-
-    def get_all_friendships(self) -> list[Friendship]:
-        return self.db.query(Friendship).all()
-
-    def save_prediction(self, user_id: int, friend_id: int, score: float) -> Friendship:
-        record = Friendship(user_id=user_id, friend_id=friend_id, compatibility_score=score)
-        self.db.add(record)
-        self.db.commit()
-        self.db.refresh(record)
-        return record
 ```
 
-- Patrón **Repository**: es la única parte del código que sabe escribir
-  queries de SQLAlchemy. Si mañana cambiás de PostgreSQL a otra base, o de
-  SQLAlchemy a otro ORM, en teoría solo tocás este archivo — el resto del
-  proyecto solo llama a métodos como `get_profile(id)`.
-- `save_prediction(...)`: cada vez que la API predice una compatibilidad,
-  **guarda el resultado como una nueva fila en `friendships`** (con
-  `compatibility_score` seteado, `is_mutual` queda en su default `False`
-  porque acá no se está confirmando una amistad real, solo registrando una
-  predicción). `self.db.refresh(record)` recarga el objeto con los valores
-  que puso la base (como el `id` autogenerado y `created_at`).
+- `contratos.py` declara `RepositorioPerfiles`, `RepositorioFeedback`,
+  `RepositorioAmistades` y el contrato combinado `RepositorioCompatibilidad`.
+  `repositorio_amistades.py` implementa estos métodos con SQLAlchemy.
+- `CompatibilityService` depende de `RepositorioCompatibilidad` y
+  `RetrainService` de `RepositorioFeedback`, no de `FriendshipRepository`.
+  El proveedor del controller elige la implementación concreta.
+- El repositorio guarda feedback y amistades/predicciones. La ruta de
+  predicción actual no persiste el score; `CompatibilityService.predict` es
+  de solo lectura.
 
 ### 2.7 `app/services/compatibility_service.py` — el corazón de la predicción
 
@@ -251,34 +251,19 @@ cambiar la otra.
 
 ```python
 class CompatibilityService:
-    def __init__(self, repository: FriendshipRepository):
+    def __init__(self, repository: RepositorioCompatibilidad, model=None):
         self.repository = repository
-        self.model = ModelFactory.get_model(settings.model_path)
+        self.model = (
+            model if model is not None else ModelFactory.get_model(settings.model_path)
+        )
 
     def predict(self, user_id: int, friend_id: int) -> dict:
-        user = self.repository.get_profile(user_id)
-        friend = self.repository.get_profile(friend_id)
-        if not user or not friend:
-            raise ValueError("Perfil de usuario o amigo no encontrado")
-
-        features = self._build_features(user, friend)
-        features_tensor = torch.tensor([features], dtype=torch.float32)
-        with torch.no_grad():
-            score = float(self.model(features_tensor).item())
-
-        self.repository.save_prediction(user_id, friend_id, score)
-        return {
-            "user_id": user_id, "friend_id": friend_id,
-            "compatibility_score": round(score, 4),
-            "is_compatible": score >= 0.5,
-        }
+        ...
 ```
 
-- `ModelFactory.get_model(...)` en el `__init__`: cada vez que se **crea** un
-  `CompatibilityService` (una vez por cada request, ver `get_service` en el
-  controller), pide el modelo al Factory. Como el Factory cachea el modelo
-  (ver 2.9), esto no recarga el archivo `.pt` en cada request — solo la
-  primera vez.
+- El repositorio y el calculador de features se reciben por constructor; el
+  modelo también se puede inyectar para pruebas. Por defecto, el service pide
+  el modelo al Factory, que lo cachea en memoria.
 - `torch.tensor([features], ...)`: el `[features]` (lista dentro de lista) es
   porque PyTorch espera un **batch**, aunque sea de un solo ejemplo. La forma
   final es `(1, 5)` → 1 fila, 5 columnas (las 5 features).
@@ -288,9 +273,8 @@ class CompatibilityService:
 - Las features **no se escalan** antes de entrar a la red, igual que en el
   entrenamiento. Si algún día se entrena con un `StandardScaler`, hay que
   aplicarlo también acá.
-- Guarda la predicción en la base **siempre**, incluso si nadie se lo pidió
-  explícitamente — es un efecto secundario del endpoint, útil para
-  auditoría/histórico de predicciones.
+- La predicción es de solo lectura: el feedback se registra aparte mediante
+  `save_feedback(...)` cuando el usuario confirma la etiqueta real.
 
 ### 2.8 `app/ml/model.py` — la arquitectura de la red
 
@@ -330,30 +314,20 @@ class CompatibilityNet(nn.Module):
   48 + 36 + 5 = 89`. Es una red muy chica, adecuada para datos tabulares con
   5 features.
 
-### 2.9 `app/ml/model_factory.py`
+### 2.9 `app/ml/fabrica_modelo.py`
 
 ```python
 class ModelFactory:
-    _instance = None
-
     @classmethod
-    def get_model(cls, model_path: str):
-        if cls._instance is None:
-            path = Path(model_path)
-            if not path.exists():
-                raise FileNotFoundError(f"No se encontró el modelo en {model_path}")
-            cls._instance = CompatibilityNet(input_dim=5)
-            state_dict = torch.load(path, map_location="cpu", weights_only=True)
-            cls._instance.load_state_dict(state_dict)
-            cls._instance.eval()
-        return cls._instance
+    def get_model(cls, model_path: str, arquitectura: str = "compatibility_net"):
+        ...
 ```
 
-- Patrón **Factory + Singleton combinados**: `_instance` es un atributo de
-  **clase** (compartido por todas las instancias/llamadas), así que la
-  primera vez que se llama `get_model(...)` crea el modelo, y todas las
-  llamadas siguientes devuelven el mismo objeto ya cargado — no se relee el
-  archivo `.pt` en cada request.
+- `ModelFactory` registra arquitecturas, instancia el tipo solicitado y carga
+  su `state_dict`. La caché se indexa por ruta y arquitectura; `reload(...)`
+  invalida esa entrada después de guardar un modelo reentrenado.
+- Es una Factory real: concentra la selección/instanciación y carga de
+  arquitecturas. La caché evita releer el archivo en cada request.
 - `state_dict = torch.load(..., weights_only=True)`: carga solo los **pesos**
   (números entrenados) del archivo, no código arbitrario — más seguro que
   cargar un pickle completo.
@@ -395,13 +369,26 @@ class Friendship(Base):
   (sobre `interests`) y `similitud_tags_posts` (sobre `tags_agregados`) como
   **dos features independientes** — si se mezclaran, se perdería esa
   distinción.
-- `is_mutual`: `True` cuando la fila representa una amistad confirmada; `False`
-  para pares negativos o para predicciones nuevas guardadas por la API (no hay
-  forma de distinguir ambos casos solo mirando esta columna — es una
-  limitación implícita del diseño actual).
+- `is_mutual`: `True` cuando la fila representa una amistad confirmada y
+  `False` para pares negativos. La predicción de la API no crea filas en
+  `friendships`; las respuestas reales se guardan en la tabla `feedback`.
 - `compatibility_score`: `nullable=True` porque las filas de entrenamiento no
-  tienen score — solo lo tienen las filas que crea `save_prediction` en
-  producción.
+  tienen score. `Feedback` almacena las cinco features, el score predicho y la
+  etiqueta real enviada por el usuario.
+
+### 2.11 Interfaz, feedback y reentrenamiento
+
+`app/static/index.html` se sirve desde `/` en `app/main.py`. La interfaz deja
+ingresar los IDs de dos perfiles, ejecutar una predicción, responder **Sí/No**
+y abrir un panel de equipo con acciones para reentrenar y consultar métricas.
+
+`app/services/servicio_reentrenamiento.py` coordina el fine-tuning desde el
+modelo actual. `DatasetReentrenamiento` conserva la última respuesta por
+`(user_id, friend_id)`, se exigen al menos cinco pares distintos y se añade el
+feedback al entrenamiento junto con una muestra sintética. `NoEmpeorarF1`
+rechaza el modelo nuevo si el F1 de test cae más de 0.02 respecto del actual.
+`app/services/metrics_service.py` lee las métricas guardadas en
+`models/ultimas_metricas.json`.
 
 ---
 
@@ -440,8 +427,10 @@ El proyecto se entrena **solo con datos sintéticos**:
 
 - `profiles_unificado.csv`: 2000 perfiles, generados con Mockaroo.
 - `friendships_unificado.csv`: 8000 pares (4000 amigos y 4000 no amigos).
-- `generar_friendships.py` y `procesar_dataset.py` (en la raíz) generan y
-  procesan las amistades sintéticas.
+- `procesar_dataset.py` genera `profiles_final.csv` desde `MOCK_DATA.csv`;
+  `generar_friendships.py` consume ese archivo y produce
+  `friendships_final.csv`. Son auxiliares del flujo legado, no los scripts que
+  preparan los CSV unificados usados por la aplicación actual.
 - `scripts/exportar_sintetico_csv.py` genera `sintetico_features.csv`: 8000
   filas con las 5 features y la etiqueta `y`.
 
@@ -486,44 +475,19 @@ Las 5 features:
   más los nombres de features, para que el entrenamiento y la evaluación
   siempre partan del mismo split (reproducibilidad).
 
-### 4.4 `app/ml/model.py` y `model_factory.py`
+### 4.4 `app/ml/model.py` y `fabrica_modelo.py`
 Ya explicados en 2.8 y 2.9 — viven en `app/` porque son parte de la API, no
 scripts sueltos.
 
-### 4.5 `train_neural_net.py` — entrena `CompatibilityNet`
+### 4.5 `entrenar_red.py` — entrena `CompatibilityNet`
 
-- `cargar_split()`: lee `data/splits.npz` y lo devuelve como diccionario.
-- `a_tensor_dataset(X, y)`: convierte arrays de NumPy a tensores de PyTorch;
-  `y_t.unsqueeze(1)` cambia la forma de `(N,)` a `(N, 1)` porque la capa de
-  salida de la red devuelve `(N, 1)`, y `BCELoss` necesita que ambas formas
-  coincidan.
-- `entrenar(...)`: función reusable (también la llama `feedback_loop.py`).
-  Arma los `DataLoader` (el de train mezcla los datos en cada época
-  `shuffle=True`; el de validación no, `shuffle=False`, y usa un solo batch
-  de todo el set porque no hace falta mezclar para medir loss). Crea el
-  modelo, el optimizador **Adam** (con `weight_decay` = regularización L2,
-  penaliza pesos grandes) y la función de loss **BCELoss** (Binary
-  Cross-Entropy, la estándar para clasificación binaria con salida
-  Sigmoid).
-- **Loop de entrenamiento**: por cada época, recorre los batches de train
-  (forward → loss → `backward()` calcula gradientes → `optimizador.step()`
-  actualiza los pesos), después evalúa en validación **sin** actualizar
-  pesos (`torch.no_grad()` implícito porque no se llama `.backward()` ahí).
-- **Early stopping**: si `val_loss` mejora, guarda una copia de los pesos
-  actuales (`mejor_estado = modelo.state_dict()`) y resetea el contador de
-  "épocas sin mejora"; si no mejora, lo incrementa, y si llega a `patience`
-  (20), corta el entrenamiento antes de tiempo. Esto evita seguir
-  entrenando cuando el modelo ya empezó a *overfitear* (memorizar train en
-  vez de generalizar).
-- Al final, **siempre** restaura los mejores pesos vistos
-  (`modelo.load_state_dict(mejor_estado)`), no los últimos — importante
-  porque los últimos podrían ser peores si el early stopping no llegó a
-  cortar justo a tiempo.
-- `main()`: entrena con los hiperparámetros default (200 épocas, batch 16,
-  lr 0.001, weight_decay 1e-4) y guarda **solo el `state_dict`** (los pesos,
-  no la arquitectura) en `models/compatibility_net.pt` — por eso
-  `ModelFactory` necesita reconstruir la arquitectura (`CompatibilityNet()`)
-  antes de poder cargar los pesos.
+- `cargar_split()`: lee los arrays de `data/splits.npz`.
+- `main()`: delega el entrenamiento a `Entrenador` en
+  `app/ml/entrenador.py`, guarda el `state_dict` en
+  `models/compatibility_net.pt` y reporta la mejor pérdida de validación.
+- `Entrenador` contiene el loop de entrenamiento, validación, Adam, BCELoss y
+  early stopping. También admite `modelo_inicial` para hacer fine-tuning; el
+  servicio de la API utiliza esa capacidad para partir del modelo actual.
 
 ### 4.6 `evaluate_model.py` — mide qué tan bien predice el modelo
 
@@ -589,13 +553,12 @@ AJUSTE_WEIGHT_DECAY = 1e-5
 - No reintenta en loop infinito: informa por consola si, después de ese
   único reintento, el F1 sigue sin llegar al umbral, y deja la decisión de
   ajustar arquitectura/features/dataset a una revisión manual.
-- Se corre como módulo (`python -m scripts.feedback_loop`) porque hace
-  imports relativos al paquete `scripts` (`from scripts.evaluate_model import
-  ...`), a diferencia de los otros scripts que se corren con
-  `python scripts/archivo.py`.
+- Se ejecuta desde la raíz con `python scripts/feedback_loop.py`. Es un
+  proceso CLI independiente del feedback y reentrenamiento de la API.
 
-El feedback loop completo con interfaz (predecir, confirmar el valor real,
-reentrenar y ver métricas antes y después) está pendiente.
+La interfaz de la API ya integra predicción, confirmación del valor real,
+reentrenamiento y consulta de métricas; ese flujo está descrito en la sección
+2.11.
 
 ---
 
@@ -625,26 +588,26 @@ python-dotenv        → carga variables desde .env
 
 ## 6. Flujo completo, de punta a punta
 
-1. **Dataset sintético**: `profiles_unificado.csv` y `friendships_unificado.csv`
-   (generados con Mockaroo y procesados con `generar_friendships.py` y
-   `procesar_dataset.py`) son el punto de partida.
+1. **Dataset sintético**: `profiles_unificado.csv` y
+   `friendships_unificado.csv` son los datos de entrada versionados.
 2. **`features.py`** calcula las 5 features de cada par de perfiles.
 3. **`split_dataset_csv.py`** arma un split 70/15/15 fijo, guardado en
    `data/splits.npz`.
-4. **`train_neural_net.py`** entrena `CompatibilityNet` (definida en
+4. **`entrenar_red.py`** entrena `CompatibilityNet` (definida en
    `app/ml/model.py`) sobre ese split, con early stopping, y guarda los
-   pesos en `models/compatibility_net.pt`. El entrenamiento se corre en
-   Google Colab con GPU.
+   pesos en `models/compatibility_net.pt`. El entrenamiento se puede correr
+   localmente o en Google Colab.
 5. **`evaluate_model.py`** mide qué tan bien predice sobre el test set
    (nunca visto durante el entrenamiento).
 6. **`colab_busqueda_arquitectura.py`** comprueba si otra arquitectura mejora
    el resultado (no mejora), y **`feedback_loop.py`** automatiza el paso "si
    la evaluación no alcanza un mínimo, reajustar y reentrenar".
-7. **La API** (`app/`) carga ese mismo `.pt` vía `ModelFactory`, recibe
-   `POST /compatibility/predict` con dos IDs de perfil, calcula las mismas
-   5 features (en `compatibility_service.py`, con la misma lógica que
-   `features.py`), corre la red neuronal, y devuelve un score — guardando
-   además esa predicción en la base como una nueva fila de `Friendship`.
+7. **La API y la interfaz** (`app/`) cargan ese mismo `.pt` vía
+   `ModelFactory`. `POST /compatibility/predict` calcula y devuelve el score;
+   `POST /compatibility/feedback` guarda la respuesta real;
+   `POST /compatibility/retrain` hace fine-tuning y `GET /compatibility/metrics`
+   entrega las métricas del último reentrenamiento. La interfaz en `/` expone
+   esas acciones.
 
 Todo el proyecto gira alrededor de una idea central: **las features que ve
 la red al predecir en producción tienen que ser matemáticamente idénticas a

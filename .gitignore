@@ -31,10 +31,7 @@ Thumbs.db
 *.log
 profiles.csv
 friendships.csv
-reales_features.csv
 sintetico_features.csv
 
-models/*.bak.pt
-models/ultimas_metricas.json
 models/*.bak.pt
 models/ultimas_metricas.json

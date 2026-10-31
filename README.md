@@ -9,60 +9,131 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 1. Estandarizar el entorno para crear, entrenar y evaluar un modelo de red neuronal.
 2. Seguir el flujo **dataset → configuración → entrenamiento → interfaz**.
 3. Exponer el modelo entrenado como API REST (FastAPI + Swagger).
-4. Aplicar buenas prácticas: arquitectura MVC, patrones de diseño, tests y entorno de prueba autónomo (CI).
+4. Aplicar buenas prácticas de arquitectura, tests y entorno de prueba autónomo (CI).
 5. Dejar documentación para que un agente de IA pueda trabajar en el proyecto (`docs/AGENT.md`, `docs/memoria.md`).
 
-## 🏗️ Arquitectura
+## 🏗️ Arquitectura y patrones
 
-- **Patrón**: MVC
-- **API**: FastAPI (Swagger automático en `/docs`)
-- **Base de datos**: PostgreSQL (SQLAlchemy ORM + Alembic para migraciones)
-- **Red neuronal**: PyTorch
-- **Patrones de diseño**:
-  - **Repository** — aísla el acceso a datos (`app/repositories/`)
-  - **Factory** — centraliza la carga del modelo entrenado (`app/ml/model_factory.py`)
-  - **Service Layer** — separa la lógica de negocio de los controllers (`app/services/`)
-  - **Dependency Injection** — nativo de FastAPI, para inyectar sesión de DB y servicios
+- **MVC adaptado a una API REST**: modelos ORM en `app/models/`, endpoints en
+  `app/controllers/`, schemas de entrada/salida en `app/views/` y la interfaz
+  web en `app/static/index.html`. `views/` contiene schemas Pydantic, no vistas
+  HTML renderizadas en el servidor.
+- **Repository** — `app/repositories/contratos.py` define las abstracciones y
+  `app/repositories/repositorio_amistades.py` implementa el acceso con
+  SQLAlchemy. Los servicios dependen de contratos; los proveedores del
+  controller componen la implementación concreta.
+- **Factory** — `app/ml/fabrica_modelo.py` (`ModelFactory`) centraliza el
+  registro de arquitecturas y la carga, caché y recarga del modelo.
+- **Service Layer** — `app/services/compatibility_service.py`,
+  `app/services/servicio_reentrenamiento.py` y
+  `app/services/metrics_service.py` concentran los casos de uso fuera de las
+  rutas.
+- **Dependency Injection** — FastAPI proporciona `Depends(...)` en
+  `app/controllers/compatibility_controller.py` para resolver sesión y
+  servicios. SOLID no es un patrón ni algo "nativo" de FastAPI: los servicios
+  aplican principalmente inversión de dependencias mediante los contratos de
+  repositorio, y las rutas actúan como composición y traducción HTTP.
 
 ## 📁 Estructura del proyecto
 
 ```text
 .
+├── .env.example
+├── .flake8
+├── .gitignore
+├── .github/workflows/ci.yml
+├── alembic.ini
+├── alembic/
+│   ├── README
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions/
+│       ├── 26826_agregar_tags.py
+│       ├── 55847864579c_crear_profiles_y_friendships.py
+│       └── a8b545be77f2_crear_tabla_feedback.py
 ├── app/
-│   ├── main.py                  # entrypoint FastAPI
-│   ├── config.py                # configuración (variables de entorno)
-│   ├── database.py              # conexión a PostgreSQL
-│   ├── controllers/             # C — endpoints
-│   ├── models/                  # M — entidades ORM (Profile, Friendship)
-│   ├── views/                   # V — schemas Pydantic
-│   ├── services/                # lógica de negocio
-│   ├── repositories/            # patrón Repository
-│   └── ml/                      # CompatibilityNet y ModelFactory
-├── alembic/                     # migraciones de base de datos
-├── data/
-│   └── splits.npz               # split train/val/test
-├── docs/                        # AGENT.md, memoria.md, comandos.md, etc.
-├── models/
-│   └── compatibility_net.pt     # pesos entrenados (state_dict)
-├── results/                     # resultados de la búsqueda de arquitectura
+│   ├── config.py
+│   ├── database.py
+│   ├── main.py
+│   ├── controllers/
+│   │   ├── __init__.py
+│   │   └── compatibility_controller.py
+│   ├── ml/
+│   │   ├── __init__.py
+│   │   ├── almacenamiento.py
+│   │   ├── criterios_aceptacion.py
+│   │   ├── dataset_feedback.py
+│   │   ├── entrenador.py
+│   │   ├── evaluador.py
+│   │   ├── fabrica_modelo.py
+│   │   └── model.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── feedback.py
+│   │   ├── friendship.py
+│   │   └── profile.py
+│   ├── repositories/
+│   │   ├── __init__.py
+│   │   ├── contratos.py
+│   │   └── repositorio_amistades.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── compatibility_service.py
+│   │   ├── metrics_service.py
+│   │   └── servicio_reentrenamiento.py
+│   ├── static/index.html
+│   └── views/
+│       ├── __init__.py
+│       └── compatibility_schema.py
+├── data/splits.npz
+├── docs/
+│   ├── AGENT.md
+│   ├── Skill.md
+│   ├── comandos.md
+│   ├── explicacion.md
+│   └── memoria.md
+├── models/compatibility_net.pt
+├── notebooks/                  # carpeta sin notebooks commiteados
+├── results/                    # carpeta sin resultados commiteados
 ├── scripts/
-│   ├── features.py              # cálculo de las 5 features
-│   ├── split_dataset_csv.py     # arma el split desde los CSV sintéticos
-│   ├── train_neural_net.py      # entrenamiento
-│   ├── evaluate_model.py        # evaluación
+│   ├── __init__.py
+│   ├── cargar_sinteticos_db.py
 │   ├── colab_busqueda_arquitectura.py
+│   ├── entrenar_red.py
+│   ├── evaluate_model.py
+│   ├── exportar_sintetico_csv.py
+│   ├── features.py
 │   ├── feedback_loop.py
-│   └── exportar_sintetico_csv.py
-├── tests/                       # tests unitarios e integración
-├── notebooks/                   # notebook de Colab (red_friendship.ipynb)
-├── generar_friendships.py       # genera friendships sintéticas
-├── procesar_dataset.py          # procesa el dataset sintético
-├── profiles_unificado.csv       # 2000 perfiles sintéticos
-├── friendships_unificado.csv    # 8000 amistades sintéticas
-├── sintetico_features.csv       # 8000 filas: 5 features + etiqueta
+│   ├── limpiar_friendships.py
+│   ├── split_dataset_csv.py
+│   ├── ver_conteos.py
+│   ├── ver_feedback.py
+│   └── ver_friendships.py
+├── tests/
+│   ├── test_compatibility_controller.py
+│   ├── test_compatibility_service.py
+│   ├── test_componentes_reentrenamiento.py
+│   ├── test_fabrica_modelo.py
+│   ├── test_feedback_loop.py
+│   ├── test_friendship_repository.py
+│   ├── test_metrics_service.py
+│   ├── test_model.py
+│   └── test_retrain_service.py
+├── pytest.ini
+├── friendships_unificado.csv
+├── profiles_unificado.csv
+├── generar_friendships.py
+├── procesar_dataset.py
 ├── requirements.txt
+├── README.md
 └── requirements-dev.txt
 ```
+
+El archivo local `sintetico_features.csv` se genera cuando hace falta y está
+ignorado por Git. Los notebooks se entregan junto con el repo, pero no están
+commiteados en este checkout. El CSV de resultados de la búsqueda tampoco
+está disponible; los valores publicados en este README quedan como resultado
+documentado.
 
 ## 🛠️ Requisitos previos
 
@@ -90,13 +161,16 @@ Swagger disponible en `http://localhost:8000/docs`.
 
 ## 📊 Dataset
 
-El dataset es **sintético**, generado con Mockaroo y procesado con los scripts del repo:
+El dataset versionado es **sintético**:
 
 | Archivo | Contenido |
 |---|---|
 | `profiles_unificado.csv` | 2000 perfiles |
 | `friendships_unificado.csv` | 8000 pares (4000 amigos y 4000 no amigos) |
-| `sintetico_features.csv` | 8000 filas con las 5 features y la etiqueta `y` |
+| `sintetico_features.csv` | Se genera localmente con `python scripts/exportar_sintetico_csv.py`; 8000 filas con 5 features y `y` |
+
+`sintetico_features.csv` está en `.gitignore`: se genera cuando hace falta y
+no se versiona.
 
 **Features** (en este orden, que es el orden de entrada de la red):
 
@@ -129,7 +203,7 @@ El dataset es **sintético**, generado con Mockaroo y procesado con los scripts 
 | Oculta 2 | 4 | Linear 8→4, ReLU, Dropout 0.2 |
 | Salida | 1 | Linear 4→1, Sigmoid |
 
-**Hiperparámetros** (`scripts/train_neural_net.py`):
+**Hiperparámetros** (`scripts/entrenar_red.py`):
 
 - Optimizador: Adam (learning rate 0.001, weight decay 1e-4)
 - Función de pérdida: BCELoss (clasificación binaria)
@@ -139,15 +213,18 @@ El dataset es **sintético**, generado con Mockaroo y procesado con los scripts 
 
 ## 🏋️ Entrenamiento y evaluación
 
-El entrenamiento se ejecuta en **Google Colab** (GPU), con el notebook `notebooks/red_friendship.ipynb`, que corre los mismos scripts del repo desde la raíz del proyecto:
+El entrenamiento se puede ejecutar desde la raíz del repo:
 
 ```powershell
 python scripts/split_dataset_csv.py
-python scripts/train_neural_net.py
+python scripts/entrenar_red.py
 python scripts/evaluate_model.py
 ```
 
-Los pesos entrenados se guardan en `models/compatibility_net.pt` (solo el `state_dict`), y el split en `data/splits.npz`. Las features no se escalan, así que la API carga el modelo sin ninguna transformación adicional.
+Los pesos entrenados se guardan en `models/compatibility_net.pt` (solo el
+`state_dict`), y el split en `data/splits.npz`. Las features no se escalan.
+Los notebooks de entrenamiento/demo se entregan junto con el repo; no están
+commiteados en este checkout.
 
 **Resultados en el conjunto de test** (1200 ejemplos, umbral 0.50):
 
@@ -176,15 +253,50 @@ Si la evaluación falla, el proceso prevé ajustar la arquitectura y reentrenar.
 | 16-8-4 | 0.2 | 0.8403 | 0.0098 | 0.8115 |
 | 32-16 | 0.0 | 0.8399 | 0.0092 | 0.8114 |
 
-**Conclusión:** todas las configuraciones, incluida la regresión logística, dan un AUC de alrededor de 0.84. La diferencia entre la primera y la segunda (0.0002) está muy por debajo del desvío estándar (0.0097), así que ninguna arquitectura mejora de forma medible a las otras. Se mantiene la arquitectura 5→8→4→1. Los resultados completos están en `results/resultados_arquitectura_sintetico_features.csv`.
+**Conclusión:** todas las configuraciones, incluida la regresión logística, dan un AUC de alrededor de 0.84. La diferencia entre la primera y la segunda (0.0002) está muy por debajo del desvío estándar (0.0097), así que ninguna arquitectura mejora de forma medible a las otras. Se mantiene la arquitectura 5→8→4→1. La tabla anterior es el resultado documentado; el CSV de resultados no está disponible en este checkout.
 
 ## ⚠️ Limitaciones
 
 El dataset es sintético y la etiqueta depende sobre todo de `similitud_intereses`; las otras features aportan muy poca señal. Por eso las métricas reflejan qué tan bien la red aprendió la regla del generador de datos, y no cómo se comportaría con amistades reales. Tampoco hay diferencias entre arquitecturas, porque la red usa una sola feature de manera efectiva.
 
-## 🔄 Feedback loop
+## 🔄 API e interfaz de feedback
 
-`scripts/feedback_loop.py` permite reentrenar ajustando hiperparámetros cuando la evaluación no alcanza. El flujo completo (predecir, confirmar el valor real, reentrenar y ver métricas antes y después) todavía no está disponible como interfaz.
+La interfaz web se sirve en `/` desde `app/static/index.html`. Permite
+predecir la compatibilidad, enviar feedback **Sí/No** y, desde el panel del
+equipo, reentrenar y consultar las métricas.
+
+| Método y ruta | Función |
+|---|---|
+| `POST /compatibility/predict` | Calcula la compatibilidad entre dos perfiles |
+| `POST /compatibility/feedback` | Guarda la respuesta real; responde `201` |
+| `POST /compatibility/retrain` | Hace fine-tuning desde el modelo actual |
+| `GET /compatibility/metrics` | Devuelve las métricas del último reentrenamiento |
+
+El reentrenamiento usa la respuesta más reciente por par
+`(user_id, friend_id)`, requiere al menos **5 pares distintos** y mezcla el
+feedback con una muestra sintética. Se rechaza si el F1 de test del modelo
+nuevo cae más de **0.02** respecto del modelo actual.
+
+## ▶️ Cómo correr la demo
+
+### Local
+
+Con PostgreSQL configurado en `.env`, ejecutar desde la raíz:
+
+```powershell
+alembic upgrade head
+python scripts/cargar_sinteticos_db.py
+uvicorn app.main:app --reload
+```
+
+Abrir `http://localhost:8000/` (interfaz) o `http://localhost:8000/docs`
+(Swagger).
+
+### Colab
+
+Usar el notebook de demo que se entrega junto con el repo dentro de
+`notebooks/`. En este checkout la carpeta no contiene el notebook; no se ha
+inventado ni agregado un archivo de reemplazo.
 
 ## 🧪 Tests y CI
 
@@ -194,7 +306,10 @@ flake8 app scripts tests
 pytest tests/ -v
 ```
 
-El workflow de GitHub Actions (`.github/workflows/ci.yml`) instala las dependencias, corre flake8 y ejecuta pytest en cada push, y funciona como entorno de prueba autónomo.
+El workflow de GitHub Actions (`.github/workflows/ci.yml`) instala las
+dependencias, corre flake8 y ejecuta pytest en pushes y pull requests a `main`
+y a ramas que coincidan con `limpieza-sintetico*`.
+La suite actual contiene 115 tests distribuidos en nueve módulos.
 
 ## 📌 Estado
 
@@ -202,10 +317,8 @@ Hecho:
 - Dataset sintético, split y features
 - Red neuronal entrenada y evaluada
 - Búsqueda de arquitectura
-- API con base de datos, repository, service layer y tests
+- API, interfaz web, feedback y reentrenamiento con métricas
+- Tests de la API, servicios y componentes
 - CI en GitHub Actions
 
-Pendiente:
-- Interfaz para predecir, confirmar el valor real, reentrenar y ver métricas
-- Feedback loop integrado a la API
-- Actualizar el resto de la documentación (`docs/`)
+Pendiente: merge a `main` y entrega del proyecto el 04/11.

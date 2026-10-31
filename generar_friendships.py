@@ -1,10 +1,11 @@
 """
-Genera friendships sinteticas para profiles_final.csv, con la MISMA logica
-que ya usaste en extract_from_yo_adolescente.py: los pares "amigos" (is_mutual=true)
-tienen que salir mayormente de usuarios parecidos (mismos intereses / misma
-subcultura), y los pares "no amigos" (is_mutual=false) mayormente de usuarios
-sin nada en comun. Si esto fuera puro random, el modelo no tendria señal real
-para aprender.
+Genera friendships sintéticas para profiles_final.csv, el archivo producido
+por procesar_dataset.py a partir de MOCK_DATA.csv. Es un paso auxiliar del
+flujo legado de CSV: crea friendships_final.csv y no procesa los CSV
+unificados usados por la aplicación actual.
+
+Los pares "amigos" (is_mutual=true) se muestrean mayormente entre perfiles
+parecidos; los pares "no amigos" (is_mutual=false), entre perfiles distintos.
 
 Solo usa la libreria estandar (csv, json, random) - sin pandas.
 """

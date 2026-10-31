@@ -17,28 +17,29 @@ entorno.
 ### 2. Model Training (`skill-model-train`)
 - **Descripción:** Entrena `CompatibilityNet` con Adam, BCELoss y early
   stopping, y guarda los pesos en `models/compatibility_net.pt`.
-- **Uso:** `python scripts/train_neural_net.py`. En Google Colab (GPU), con los
+- **Uso:** `python scripts/entrenar_red.py`. En Google Colab (GPU), con los
   mismos comandos desde la raíz del repo en Drive.
 
 ### 3. Model Evaluation (`skill-model-eval`)
 - **Descripción:** Evalúa el modelo entrenado contra el set de test
-  (precision, recall, F1 y matriz de confusión) y aplica el feedback loop si
-  el F1 no alcanza el mínimo (0.70).
+  (precision, recall, F1 y matriz de confusión). El feedback loop CLI, si se
+  ejecuta por separado, intenta un reentrenamiento cuando F1 es menor a 0.70.
 - **Uso:** `python scripts/evaluate_model.py` y
-  `python -m scripts.feedback_loop`.
+  `python scripts/feedback_loop.py`.
 
 ### 4. Architecture Search (`skill-arch-search`)
 - **Descripción:** Compara varias arquitecturas de la red (tamaño de capas y
   dropout) y una regresión logística de referencia, con validación cruzada.
   Sirve para decidir si hay que ajustar la arquitectura cuando la evaluación
   falla.
-- **Uso:** `python scripts/colab_busqueda_arquitectura.py`. Los resultados
-  quedan en `results/resultados_arquitectura_sintetico_features.csv`.
+- **Uso:** `python scripts/colab_busqueda_arquitectura.py`. El resultado se
+  genera en `results/`; el CSV no está incluido en este checkout.
 
 ### 5. API Management (`skill-api-manage`)
 - **Descripción:** Levanta, prueba y documenta los endpoints de la API
   (FastAPI), verificando que el Swagger en `/docs` esté consistente con los
-  schemas de `app/views/`.
+  schemas de `app/views/`. La interfaz en `/` incluye predicción, feedback,
+  reentrenamiento y consulta de métricas.
 - **Uso:** `uvicorn app.main:app --reload` y pruebas manuales o automatizadas
   contra `/docs`.
 

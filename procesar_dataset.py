@@ -1,9 +1,9 @@
 """
-Procesa el CSV crudo que baja Mockaroo y lo deja listo para el proyecto:
-- interests y tags_agregados pasan de un solo valor a un array JSON (2-4 valores por usuario),
-  necesario para que la similitud Jaccard entre usuarios no sea siempre 0 o 1.
-- is_online / is_moderator se reasignan con la proporcion real que quieras
-  (Mockaroo los generaba mas o menos 50/50, algo poco realista).
+Procesa MOCK_DATA.csv, una exportación cruda de Mockaroo, y genera
+profiles_final.csv con interests y tags_agregados como arrays JSON y con
+is_online / is_moderator reasignados. generar_friendships.py consume ese
+archivo para producir friendships_final.csv. Es un flujo auxiliar legado; la
+aplicación actual carga profiles_unificado.csv y friendships_unificado.csv.
 
 Solo usa la libreria estandar (csv, json, random) - sin pandas.
 """

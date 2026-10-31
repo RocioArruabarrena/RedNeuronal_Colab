@@ -1,6 +1,7 @@
 # tests/test_friendship_repository.py
 """
-Tests de integración de FriendshipRepository (app/repositories/friendship_repository.py).
+Tests de integración de FriendshipRepository
+(app/repositories/repositorio_amistades.py).
 
 Usa SQLite en memoria (vía StaticPool para que todas las conexiones del
 engine compartan la misma DB en memoria) en vez de mockear Session, para
