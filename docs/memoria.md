@@ -18,8 +18,9 @@
   y DI mediante `Depends`. SOLID son principios, no un patrón ni una función
   nativa de FastAPI.
 - **Entorno:** Windows/PowerShell; la demo puede correr localmente o en Colab.
-  Los notebooks se entregan junto con el repo, pero no están commiteados en
-  este checkout.
+  Los notebooks están en `notebooks/` (`red_friendship.ipynb` para el
+  entrenamiento y `red_friendship_demo.ipynb` para la demo) y clonan el repo
+  desde GitHub, sin depender de Google Drive.
 
 ## API y reentrenamiento
 
@@ -45,8 +46,8 @@
    Guarda los pesos en `models/compatibility_net.pt`.
 3. `scripts/evaluate_model.py` evalúa sobre test con umbral 0.50.
 4. `scripts/colab_busqueda_arquitectura.py` compara arquitecturas con
-   validación cruzada. El CSV generado no está disponible en este checkout;
-   los resultados quedan documentados en la tabla del README.
+   validación cruzada y guarda el CSV en `results/`. Los resultados quedan
+   resumidos en la tabla del README.
 
 Las features no se escalan. `ModelFactory` carga el modelo sin transformación
 adicional.
@@ -81,10 +82,15 @@ adicional.
   pushes y pull requests a `main` y ramas `limpieza-sintetico*`.
 - Se limpiaron scripts y CSV de datos reales y el modelo antiguo de
   scikit-learn.
+- Notebooks de Colab en `notebooks/`: entrenamiento y demo, ambos clonan el
+  repo desde GitHub.
 
 ## Pendiente
 
 - Merge a `main`.
+- Apuntar `BRANCH` a `main` en los notebooks, ejecutarlos desde cero en Colab
+  y guardarlos con sus salidas.
+- Pruebas de punta a punta del flujo completo (local y Colab).
 - Entrega del proyecto el 04/11.
 
 ## Notas operativas
@@ -95,7 +101,7 @@ adicional.
   `tiene_tags_posts`, `mismo_avatar_subcultura`.
 - La lógica de las features existe en `scripts/features.py` y
   `app/services/compatibility_service.py`; si se cambia una, revisar la otra.
-- Los notebooks son parte de la entrega, pero no están commiteados en este
-  checkout.
+- Los notebooks de `notebooks/` son parte de la entrega. Si cambian los
+  nombres de scripts o comandos, actualizarlos también.
 - Para verificar cambios, ejecutar `pytest tests/ -v` y
   `flake8 app scripts tests`. Los comandos están en `comandos.md`.

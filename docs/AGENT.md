@@ -26,8 +26,10 @@ dataset → configuración → entrenamiento → interfaz.
 - Edición: VS Code en Windows, con PowerShell desde la raíz del repositorio.
 - Python: entorno virtual local (`.venv`), con dependencias de
   `requirements.txt`.
-- Demo y entrenamiento: local o en Google Colab. Los notebooks se entregan
-  junto con el repo, pero no están commiteados en este checkout.
+- Demo y entrenamiento: local o en Google Colab, con los notebooks de
+  `notebooks/` (`red_friendship.ipynb` y `red_friendship_demo.ipynb`). Clonan
+  el repo desde GitHub (la rama se define en la variable `BRANCH` de la primera
+  celda), sin copia en Google Drive.
 - Base de datos de la aplicación: PostgreSQL, configurada mediante `.env`.
 - CI: GitHub Actions (`.github/workflows/ci.yml`) ejecuta flake8 y pytest en
   pushes y pull requests a `main` y ramas `limpieza-sintetico*`.
@@ -54,6 +56,8 @@ dataset → configuración → entrenamiento → interfaz.
   (`scripts/features.py` y `app/services/compatibility_service.py`).
 - Registrar cambios estructurales y comandos nuevos en `comandos.md`, y
   decisiones y estado en `memoria.md`.
+- Si cambian los nombres de scripts o los comandos, actualizar también los
+  notebooks de `notebooks/`.
 - Mantener Swagger (`/docs`) consistente con los schemas de `app/views/`.
 - `sintetico_features.csv` está en `.gitignore`; regenerarlo con
   `python scripts/exportar_sintetico_csv.py` si hace falta. Si cambian los

@@ -25,6 +25,7 @@ Red-Neuronal/
 ├── alembic/                → configuración y tres migraciones
 ├── data/splits.npz
 ├── models/compatibility_net.pt
+├── notebooks/              → notebooks de Colab (entrenamiento y demo)
 ├── docs/                   → AGENT.md, Skill.md, comandos.md, explicacion.md, memoria.md
 ├── tests/                  → nueve módulos de tests
 ├── profiles_unificado.csv
@@ -41,10 +42,10 @@ datos y entrenar el modelo que `app/` después consume. Son dos mundos que se
 tocan en un solo punto: el archivo `models/compatibility_net.pt` que
 `scripts/entrenar_red.py` escribe y `app/ml/fabrica_modelo.py` lee.
 
-`notebooks/` y `results/` no tienen archivos en este checkout. Los notebooks
-se entregan junto con el repo, pero no están commiteados. El CSV generado de
-features tampoco se versiona: `scripts/exportar_sintetico_csv.py` lo crea en
-la raíz y `.gitignore` lo excluye.
+`notebooks/` contiene los dos notebooks de Colab (ver 4.9). La carpeta
+`results/` la crea la búsqueda de arquitectura al ejecutarse. El CSV generado
+de features no se versiona: `scripts/exportar_sintetico_csv.py` lo crea en la
+raíz y `.gitignore` lo excluye.
 
 ---
 
@@ -560,6 +561,25 @@ La interfaz de la API ya integra predicción, confirmación del valor real,
 reentrenamiento y consulta de métricas; ese flujo está descrito en la sección
 2.11.
 
+### 4.9 `notebooks/` — Colab
+
+Hay dos notebooks. Los dos clonan el repositorio desde GitHub (la rama se
+define en la variable `BRANCH` de la primera celda), instalan las dependencias
+sin torch, numpy ni pandas (que ya vienen con Colab) y no dependen de Google
+Drive.
+
+- `red_friendship.ipynb` (entrenamiento): muestra las columnas de los CSV,
+  corre `split_dataset_csv.py`, `entrenar_red.py` y `evaluate_model.py`, genera
+  `sintetico_features.csv` y ejecuta la búsqueda de arquitectura. Al final
+  descarga los pesos, el split y el CSV de resultados.
+- `red_friendship_demo.ipynb` (demo): levanta PostgreSQL en la máquina de
+  Colab, crea el `.env`, aplica las migraciones, carga los datos sintéticos con
+  `cargar_sinteticos_db.py --reset`, corre pytest, inicia uvicorn en segundo
+  plano y abre la interfaz en un iframe.
+
+Los notebooks llaman a los scripts por su nombre: si se renombra un script o
+cambia un comando, hay que actualizarlos también.
+
 ---
 
 ## 5. `requirements.txt`
@@ -573,43 +593,4 @@ alembic              → migraciones de base de datos
 pydantic             → validación de datos (schemas de request/response)
 pydantic-settings    → BaseSettings (config.py)
 scikit-learn         → train_test_split, métricas (precision/recall/F1), búsqueda de arquitectura
-pandas               → lectura de los CSV sintéticos
-numpy                → arrays para features y splits
-joblib               → quedó de la versión anterior (LogisticRegression); ya no se usa
-torch                → PyTorch, la red neuronal (CompatibilityNet)
-pytest               → tests
-httpx                → cliente HTTP (usado por tests de FastAPI, TestClient)
-black                → formateador de código
-flake8               → linter
-python-dotenv        → carga variables desde .env
-```
-
----
-
-## 6. Flujo completo, de punta a punta
-
-1. **Dataset sintético**: `profiles_unificado.csv` y
-   `friendships_unificado.csv` son los datos de entrada versionados.
-2. **`features.py`** calcula las 5 features de cada par de perfiles.
-3. **`split_dataset_csv.py`** arma un split 70/15/15 fijo, guardado en
-   `data/splits.npz`.
-4. **`entrenar_red.py`** entrena `CompatibilityNet` (definida en
-   `app/ml/model.py`) sobre ese split, con early stopping, y guarda los
-   pesos en `models/compatibility_net.pt`. El entrenamiento se puede correr
-   localmente o en Google Colab.
-5. **`evaluate_model.py`** mide qué tan bien predice sobre el test set
-   (nunca visto durante el entrenamiento).
-6. **`colab_busqueda_arquitectura.py`** comprueba si otra arquitectura mejora
-   el resultado (no mejora), y **`feedback_loop.py`** automatiza el paso "si
-   la evaluación no alcanza un mínimo, reajustar y reentrenar".
-7. **La API y la interfaz** (`app/`) cargan ese mismo `.pt` vía
-   `ModelFactory`. `POST /compatibility/predict` calcula y devuelve el score;
-   `POST /compatibility/feedback` guarda la respuesta real;
-   `POST /compatibility/retrain` hace fine-tuning y `GET /compatibility/metrics`
-   entrega las métricas del último reentrenamiento. La interfaz en `/` expone
-   esas acciones.
-
-Todo el proyecto gira alrededor de una idea central: **las features que ve
-la red al predecir en producción tienen que ser matemáticamente idénticas a
-las que vio al entrenar** — por eso la lógica de las features se concentra
-en `scripts/features.py` y se replica con cuidado en el service.
+pandas               → lectura

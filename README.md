@@ -93,8 +93,9 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 │   ├── explicacion.md
 │   └── memoria.md
 ├── models/compatibility_net.pt
-├── notebooks/                  # carpeta sin notebooks commiteados
-├── results/                    # carpeta sin resultados commiteados
+├── notebooks/
+│   ├── red_friendship.ipynb
+│   └── red_friendship_demo.ipynb
 ├── scripts/
 │   ├── __init__.py
 │   ├── cargar_sinteticos_db.py
@@ -129,11 +130,9 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 └── requirements-dev.txt
 ```
 
-El archivo local `sintetico_features.csv` se genera cuando hace falta y está
-ignorado por Git. Los notebooks se entregan junto con el repo, pero no están
-commiteados en este checkout. El CSV de resultados de la búsqueda tampoco
-está disponible; los valores publicados en este README quedan como resultado
-documentado.
+El archivo `sintetico_features.csv` se genera cuando hace falta y está
+ignorado por Git. La carpeta `results/` la crea la búsqueda de arquitectura
+al ejecutarse.
 
 ## 🛠️ Requisitos previos
 
@@ -223,8 +222,11 @@ python scripts/evaluate_model.py
 
 Los pesos entrenados se guardan en `models/compatibility_net.pt` (solo el
 `state_dict`), y el split en `data/splits.npz`. Las features no se escalan.
-Los notebooks de entrenamiento/demo se entregan junto con el repo; no están
-commiteados en este checkout.
+
+También se puede ejecutar en Google Colab con
+`notebooks/red_friendship.ipynb`, que clona el repo desde GitHub, corre estos
+mismos scripts y la búsqueda de arquitectura, y permite descargar los pesos, el
+split y el CSV de resultados.
 
 **Resultados en el conjunto de test** (1200 ejemplos, umbral 0.50):
 
@@ -253,7 +255,7 @@ Si la evaluación falla, el proceso prevé ajustar la arquitectura y reentrenar.
 | 16-8-4 | 0.2 | 0.8403 | 0.0098 | 0.8115 |
 | 32-16 | 0.0 | 0.8399 | 0.0092 | 0.8114 |
 
-**Conclusión:** todas las configuraciones, incluida la regresión logística, dan un AUC de alrededor de 0.84. La diferencia entre la primera y la segunda (0.0002) está muy por debajo del desvío estándar (0.0097), así que ninguna arquitectura mejora de forma medible a las otras. Se mantiene la arquitectura 5→8→4→1. La tabla anterior es el resultado documentado; el CSV de resultados no está disponible en este checkout.
+**Conclusión:** todas las configuraciones, incluida la regresión logística, dan un AUC de alrededor de 0.84. La diferencia entre la primera y la segunda (0.0002) está muy por debajo del desvío estándar (0.0097), así que ninguna arquitectura mejora de forma medible a las otras. Se mantiene la arquitectura 5→8→4→1. La tabla anterior es el resultado documentado; `scripts/colab_busqueda_arquitectura.py` guarda el CSV completo en `results/resultados_arquitectura_sintetico_features.csv`.
 
 ## ⚠️ Limitaciones
 
@@ -294,9 +296,13 @@ Abrir `http://localhost:8000/` (interfaz) o `http://localhost:8000/docs`
 
 ### Colab
 
-Usar el notebook de demo que se entrega junto con el repo dentro de
-`notebooks/`. En este checkout la carpeta no contiene el notebook; no se ha
-inventado ni agregado un archivo de reemplazo.
+Abrir `notebooks/red_friendship_demo.ipynb` en Google Colab (por ejemplo, desde
+la pestaña GitHub de Archivo → Abrir cuaderno) y ejecutar las celdas en orden
+(Entorno de ejecución → Ejecutar todas). El notebook clona este repositorio
+desde GitHub, instala las dependencias, levanta PostgreSQL, aplica las
+migraciones, carga los datos sintéticos, corre los tests, inicia la API y abre
+la interfaz en un iframe. La rama se define en la variable `BRANCH` de la
+primera celda (`main`).
 
 ## 🧪 Tests y CI
 
@@ -320,5 +326,6 @@ Hecho:
 - API, interfaz web, feedback y reentrenamiento con métricas
 - Tests de la API, servicios y componentes
 - CI en GitHub Actions
+- Notebooks de Colab: entrenamiento y demo
 
 Pendiente: merge a `main` y entrega del proyecto el 04/11.

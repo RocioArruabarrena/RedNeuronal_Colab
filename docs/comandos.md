@@ -84,21 +84,24 @@ python scripts/colab_busqueda_arquitectura.py
 
 El split queda en `data/splits.npz` y los pesos en
 `models/compatibility_net.pt`. La búsqueda de arquitectura genera su CSV de
-resultados bajo `results/`, que no se versiona. Los resultados están resumidos
-en el README.
+resultados en `results/`; los resultados están resumidos en el README.
 
 `python scripts/feedback_loop.py` es un ajuste por línea de comandos,
 independiente del feedback y el reentrenamiento que expone la API.
 
-## Demo en Colab
+## Colab
 
-La demo también se ejecuta en Google Colab con los notebooks de la carpeta
-`notebooks/`:
+Los notebooks están en la carpeta `notebooks/`. Los dos clonan el repositorio
+desde GitHub (la rama se define en la variable `BRANCH` de la primera celda),
+así que no dependen de Google Drive. Para usarlos, abrirlos en Colab y ejecutar
+las celdas en orden (Entorno de ejecución → Ejecutar todas).
 
-- `red_friendship.ipynb`: entrenamiento del modelo.
-- Notebook de demo: clona el repo, instala las dependencias, levanta
-  PostgreSQL, aplica las migraciones, carga los datos sintéticos, inicia la
-  API y abre la interfaz.
+- `red_friendship.ipynb`: entrenamiento. Divide el dataset, entrena
+  `CompatibilityNet`, la evalúa, corre la búsqueda de arquitectura y descarga
+  los pesos, el split y el CSV de resultados.
+- `red_friendship_demo.ipynb`: demo. Instala las dependencias, levanta
+  PostgreSQL, aplica las migraciones, carga los datos sintéticos, corre los
+  tests, inicia la API y abre la interfaz en un iframe.
 
 ## CI
 

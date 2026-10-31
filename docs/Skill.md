@@ -17,8 +17,9 @@ entorno.
 ### 2. Model Training (`skill-model-train`)
 - **Descripción:** Entrena `CompatibilityNet` con Adam, BCELoss y early
   stopping, y guarda los pesos en `models/compatibility_net.pt`.
-- **Uso:** `python scripts/entrenar_red.py`. En Google Colab (GPU), con los
-  mismos comandos desde la raíz del repo en Drive.
+- **Uso:** `python scripts/entrenar_red.py`. En Google Colab, con
+  `notebooks/red_friendship.ipynb`, que clona el repo desde GitHub y corre los
+  mismos scripts.
 
 ### 3. Model Evaluation (`skill-model-eval`)
 - **Descripción:** Evalúa el modelo entrenado contra el set de test
@@ -32,8 +33,10 @@ entorno.
   dropout) y una regresión logística de referencia, con validación cruzada.
   Sirve para decidir si hay que ajustar la arquitectura cuando la evaluación
   falla.
-- **Uso:** `python scripts/colab_busqueda_arquitectura.py`. El resultado se
-  genera en `results/`; el CSV no está incluido en este checkout.
+- **Uso:** `python scripts/colab_busqueda_arquitectura.py` (requiere
+  `sintetico_features.csv`). El resultado se guarda en
+  `results/resultados_arquitectura_sintetico_features.csv`. También se ejecuta
+  desde `notebooks/red_friendship.ipynb`.
 
 ### 5. API Management (`skill-api-manage`)
 - **Descripción:** Levanta, prueba y documenta los endpoints de la API
@@ -54,3 +57,12 @@ entorno.
   corrida y registra cambios en `comandos.md`.
 - **Uso:** El agente ejecuta esta habilidad al finalizar exitosamente un
   pipeline o una migración.
+
+### 8. Colab Notebooks (`skill-colab`)
+- **Descripción:** Mantiene los notebooks de `notebooks/`:
+  `red_friendship.ipynb` (entrenamiento) y `red_friendship_demo.ipynb` (demo
+  con PostgreSQL, API e interfaz). Ambos clonan el repo desde GitHub y
+  dependen de los nombres de scripts y comandos del repositorio.
+- **Uso:** Al renombrar un script o cambiar un comando, actualizar los
+  notebooks y volver a ejecutarlos desde cero en Colab (con `BRANCH` en
+  `main`) para que se guarden con sus salidas.
