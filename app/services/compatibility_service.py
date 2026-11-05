@@ -3,9 +3,9 @@ from typing import Callable
 import torch
 
 from app.config import settings
+from app.dao.contratos import CompatibilidadDAO
 from app.ml.fabrica_modelo import ModelFactory
 from app.models.feedback import FEATURE_COLUMNS
-from app.repositories.contratos import RepositorioCompatibilidad
 
 UMBRAL_COMPATIBLE = 0.5
 
@@ -61,14 +61,14 @@ class CompatibilityService:
 
     def __init__(
         self,
-        repository: RepositorioCompatibilidad,
+        dao: CompatibilidadDAO,
         model=None,
         calculador_features: Callable[[object, object], list[float]] = (
             _calcular_features
         ),
         umbral: float = UMBRAL_COMPATIBLE,
     ):
-        self.repository = repository
+        self.dao = dao
         self.model = (
             model if model is not None else ModelFactory.get_model(settings.model_path)
         )
@@ -96,7 +96,7 @@ class CompatibilityService:
         features = self._build_features(user, friend)
         score = self._score(features)
 
-        record = self.repository.save_feedback(
+        record = self.dao.save_feedback(
             user_id, friend_id, features, score, real_label
         )
 
@@ -110,8 +110,8 @@ class CompatibilityService:
         }
 
     def _get_profiles(self, user_id: int, friend_id: int):
-        user = self.repository.get_profile(user_id)
-        friend = self.repository.get_profile(friend_id)
+        user = self.dao.get_profile(user_id)
+        friend = self.dao.get_profile(friend_id)
 
         if not user or not friend:
             raise ValueError("Perfil de usuario o amigo no encontrado")

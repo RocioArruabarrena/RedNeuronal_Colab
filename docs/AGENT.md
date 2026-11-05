@@ -49,9 +49,8 @@ dataset → configuración → entrenamiento → interfaz.
 
 - Ejecutar la suite con `pytest tests/ -v` y el linter con
   `flake8 app scripts tests`.
-- Mantener la separación Controller / Service / Repository / Model. La lógica
-  de negocio pertenece a `app/services/` y el acceso a datos a
-  `app/repositories/`.
+- Mantener la separación Controller / Service / DAO / Model. La lógica
+  de negocio pertenece a `app/services/` y el acceso a datos a `app/dao/`.
 - Mantener el mismo orden de las cinco features en entrenamiento e inferencia
   (`scripts/features.py` y `app/services/compatibility_service.py`).
 - Registrar cambios estructurales y comandos nuevos en `comandos.md`, y

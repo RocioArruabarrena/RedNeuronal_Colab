@@ -18,10 +18,13 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
   `app/controllers/`, schemas de entrada/salida en `app/views/` y la interfaz
   web en `app/static/index.html`. `views/` contiene schemas Pydantic, no vistas
   HTML renderizadas en el servidor.
-- **Repository** — `app/repositories/contratos.py` define las abstracciones y
-  `app/repositories/repositorio_amistades.py` implementa el acceso con
-  SQLAlchemy. Los servicios dependen de contratos; los proveedores del
-  controller componen la implementación concreta.
+- **DAO** — `app/dao/contratos.py` define los contratos y
+  `app/dao/amistades_dao.py` implementa el acceso con SQLAlchemy. Los servicios
+  dependen de los contratos; los proveedores del controller componen la
+  implementación concreta.
+- **Singleton de base de datos** — `app/database.py` crea un único engine y
+  una fábrica de sesiones compartida por el proceso; cada request obtiene y
+  cierra su propia sesión.
 - **Factory** — `app/ml/fabrica_modelo.py` (`ModelFactory`) centraliza el
   registro de arquitecturas y la carga, caché y recarga del modelo.
 - **Service Layer** — `app/services/compatibility_service.py`,
@@ -31,8 +34,8 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 - **Dependency Injection** — FastAPI proporciona `Depends(...)` en
   `app/controllers/compatibility_controller.py` para resolver sesión y
   servicios. SOLID no es un patrón ni algo "nativo" de FastAPI: los servicios
-  aplican principalmente inversión de dependencias mediante los contratos de
-  repositorio, y las rutas actúan como composición y traducción HTTP.
+  aplican principalmente inversión de dependencias mediante los contratos DAO,
+  y las rutas actúan como composición y traducción HTTP.
 
 ## 📁 Estructura del proyecto
 
@@ -72,10 +75,10 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 │   │   ├── feedback.py
 │   │   ├── friendship.py
 │   │   └── profile.py
-│   ├── repositories/
+│   ├── dao/
 │   │   ├── __init__.py
 │   │   ├── contratos.py
-│   │   └── repositorio_amistades.py
+│   │   └── amistades_dao.py
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── compatibility_service.py
@@ -91,7 +94,8 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 │   ├── Skill.md
 │   ├── comandos.md
 │   ├── explicacion.md
-│   └── memoria.md
+│   ├── memoria.md
+│   └── principios_y_patrones.md
 ├── models/compatibility_net.pt
 ├── notebooks/
 │   ├── red_friendship.ipynb
@@ -114,9 +118,10 @@ El modelo se entrena **solo con un dataset sintético** (8000 pares) y se expone
 │   ├── test_compatibility_controller.py
 │   ├── test_compatibility_service.py
 │   ├── test_componentes_reentrenamiento.py
+│   ├── test_database.py
 │   ├── test_fabrica_modelo.py
 │   ├── test_feedback_loop.py
-│   ├── test_friendship_repository.py
+│   ├── test_friendship_dao.py
 │   ├── test_metrics_service.py
 │   ├── test_model.py
 │   └── test_retrain_service.py
@@ -149,7 +154,9 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Completá en `.env` la variable `DATABASE_URL` con tus credenciales de PostgreSQL, aplicá las migraciones y levantá la API:
+Completá en `.env` la variable `DATABASE_URL` con tus credenciales de PostgreSQL.
+`Settings` valida que estén definidas `DATABASE_URL`, `MODEL_PATH`, `API_TITLE`
+y `API_VERSION`; aplicá las migraciones y levantá la API:
 
 ```powershell
 alembic upgrade head

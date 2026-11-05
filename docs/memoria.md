@@ -14,7 +14,7 @@
   versiona.
 - **API e interfaz:** FastAPI y PostgreSQL con SQLAlchemy/Alembic. La interfaz
   está en `/` (`app/static/index.html`).
-- **Arquitectura:** MVC adaptado a API REST, Repository, Factory, Service Layer
+- **Arquitectura:** MVC adaptado a API REST, DAO, Factory, Service Layer
   y DI mediante `Depends`. SOLID son principios, no un patrón ni una función
   nativa de FastAPI.
 - **Entorno:** Windows/PowerShell; la demo puede correr localmente o en Colab.

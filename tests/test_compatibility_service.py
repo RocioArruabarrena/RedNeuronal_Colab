@@ -150,11 +150,11 @@ class TestCalcularFeatures:
 
 
 @pytest.fixture
-def repository():
-    return MagicMock(name="repository")
+def dao():
+    return MagicMock(name="dao")
 
 
-def _service_con_score(repository, score: float):
+def _service_con_score(dao, score: float):
     """Arma un CompatibilityService con ModelFactory mockeada para que
     el modelo devuelva siempre `score`."""
     modelo_mock = MagicMock(name="modelo")
@@ -162,82 +162,82 @@ def _service_con_score(repository, score: float):
 
     with patch("app.services.compatibility_service.ModelFactory") as m_factory:
         m_factory.get_model.return_value = modelo_mock
-        service = CompatibilityService(repository)
+        service = CompatibilityService(dao)
     return service, modelo_mock
 
 
 class TestPredict:
 
-    def test_score_arriba_del_umbral_es_compatible(self, repository):
-        repository.get_profile.side_effect = [_perfil(), _perfil()]
-        service, _ = _service_con_score(repository, 0.75)
+    def test_score_arriba_del_umbral_es_compatible(self, dao):
+        dao.get_profile.side_effect = [_perfil(), _perfil()]
+        service, _ = _service_con_score(dao, 0.75)
 
         resultado = service.predict(1, 2)
 
         assert resultado["is_compatible"] is True
         assert resultado["compatibility_score"] == 0.75
 
-    def test_score_abajo_del_umbral_no_es_compatible(self, repository):
-        repository.get_profile.side_effect = [_perfil(), _perfil()]
-        service, _ = _service_con_score(repository, 0.30)
+    def test_score_abajo_del_umbral_no_es_compatible(self, dao):
+        dao.get_profile.side_effect = [_perfil(), _perfil()]
+        service, _ = _service_con_score(dao, 0.30)
 
         resultado = service.predict(1, 2)
 
         assert resultado["is_compatible"] is False
 
-    def test_score_exactamente_en_el_umbral_es_compatible(self, repository):
+    def test_score_exactamente_en_el_umbral_es_compatible(self, dao):
         """El umbral es >= 0.5, no > 0.5."""
-        repository.get_profile.side_effect = [_perfil(), _perfil()]
-        service, _ = _service_con_score(repository, 0.50)
+        dao.get_profile.side_effect = [_perfil(), _perfil()]
+        service, _ = _service_con_score(dao, 0.50)
 
         resultado = service.predict(1, 2)
 
         assert resultado["is_compatible"] is True
 
-    def test_score_se_redondea_a_4_decimales(self, repository):
-        repository.get_profile.side_effect = [_perfil(), _perfil()]
-        service, _ = _service_con_score(repository, 0.123456)
+    def test_score_se_redondea_a_4_decimales(self, dao):
+        dao.get_profile.side_effect = [_perfil(), _perfil()]
+        service, _ = _service_con_score(dao, 0.123456)
 
         resultado = service.predict(1, 2)
 
         assert resultado["compatibility_score"] == 0.1235
 
-    def test_predecir_no_escribe_en_el_repositorio(self, repository):
-        repository.get_profile.side_effect = [_perfil(), _perfil()]
-        service, _ = _service_con_score(repository, 0.9)
+    def test_predecir_no_escribe_en_el_dao(self, dao):
+        dao.get_profile.side_effect = [_perfil(), _perfil()]
+        service, _ = _service_con_score(dao, 0.9)
 
         service.predict(1, 2)
 
-        repository.save_prediction.assert_not_called()
+        dao.save_prediction.assert_not_called()
 
-    def test_usuario_no_encontrado_lanza_value_error(self, repository):
-        repository.get_profile.side_effect = [None, _perfil()]
-        service, _ = _service_con_score(repository, 0.5)
-
-        with pytest.raises(ValueError):
-            service.predict(1, 2)
-
-    def test_amigo_no_encontrado_lanza_value_error(self, repository):
-        repository.get_profile.side_effect = [_perfil(), None]
-        service, _ = _service_con_score(repository, 0.5)
+    def test_usuario_no_encontrado_lanza_value_error(self, dao):
+        dao.get_profile.side_effect = [None, _perfil()]
+        service, _ = _service_con_score(dao, 0.5)
 
         with pytest.raises(ValueError):
             service.predict(1, 2)
 
-    def test_no_guarda_prediccion_si_falta_un_perfil(self, repository):
-        repository.get_profile.side_effect = [None, None]
-        service, _ = _service_con_score(repository, 0.5)
+    def test_amigo_no_encontrado_lanza_value_error(self, dao):
+        dao.get_profile.side_effect = [_perfil(), None]
+        service, _ = _service_con_score(dao, 0.5)
 
         with pytest.raises(ValueError):
             service.predict(1, 2)
 
-        repository.save_prediction.assert_not_called()
+    def test_no_guarda_prediccion_si_falta_un_perfil(self, dao):
+        dao.get_profile.side_effect = [None, None]
+        service, _ = _service_con_score(dao, 0.5)
 
-    def test_features_pasadas_al_modelo_tienen_shape_correcto(self, repository):
+        with pytest.raises(ValueError):
+            service.predict(1, 2)
+
+        dao.save_prediction.assert_not_called()
+
+    def test_features_pasadas_al_modelo_tienen_shape_correcto(self, dao):
         perfil_a = _perfil(interests=["a"], activity_score=10, tags_agregados=["x"])
         perfil_b = _perfil(interests=["a"], activity_score=20, tags_agregados=["x"])
-        repository.get_profile.side_effect = [perfil_a, perfil_b]
-        service, modelo_mock = _service_con_score(repository, 0.5)
+        dao.get_profile.side_effect = [perfil_a, perfil_b]
+        service, modelo_mock = _service_con_score(dao, 0.5)
 
         service.predict(1, 2)
 

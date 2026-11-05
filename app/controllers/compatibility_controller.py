@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.repositories.repositorio_amistades import FriendshipRepository
+from app.dao.amistades_dao import FriendshipDAO
 from app.services.compatibility_service import CompatibilityService
 from app.services.metrics_service import MetricsService
 from app.services.servicio_reentrenamiento import RetrainService
@@ -17,12 +17,12 @@ router = APIRouter(prefix="/compatibility", tags=["Compatibility"])
 
 
 def get_service(db: Session = Depends(get_db)) -> CompatibilityService:
-    repository = FriendshipRepository(db)
-    return CompatibilityService(repository)
+    dao = FriendshipDAO(db)
+    return CompatibilityService(dao)
 
 
 def get_retrain_service(db: Session = Depends(get_db)) -> RetrainService:
-    return RetrainService(FriendshipRepository(db))
+    return RetrainService(FriendshipDAO(db))
 
 
 def get_metrics_service() -> MetricsService:

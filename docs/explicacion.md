@@ -7,8 +7,9 @@ red neuronal entrenada con un **dataset sintético** de 8000 pares.
 Stack: **FastAPI** (API) + **PostgreSQL/SQLAlchemy/Alembic** (persistencia) +
 **PyTorch** (red neuronal) + **scikit-learn** (split de datos y métricas).
 
-Patrones y capas verificadas en el código: **Repository** (contratos e
-implementación de acceso a datos), **Factory** (carga y caché del modelo),
+Patrones y capas verificadas en el código: **DAO** (contratos e
+implementación de acceso a datos), **Singleton** (engine y fábrica de
+sesiones), **Factory** (carga y caché del modelo),
 **Service Layer** (casos de uso) y DI con `Depends` de FastAPI. MVC está
 adaptado a una API REST: `app/views/` son schemas Pydantic y la interfaz es un
 HTML estático. SOLID son principios, no un patrón ni una función nativa de
@@ -83,53 +84,73 @@ def health_check():
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://usuario:password@localhost:5432/redes_neuronales_db"
-    model_path: str = "models/compatibility_net.pt"
-    api_title: str = "Predictor de Compatibilidad de Amistad API"
-    api_version: str = "1.0.0"
+    database_url: str
+    model_path: str
+    api_title: str
+    api_version: str
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()
 ```
 
-- `BaseSettings` de Pydantic: permite definir configuración con valores por
-  default que se pueden **sobreescribir con variables de entorno** o un
-  archivo `.env` sin tocar código. Ej: si existe una variable de entorno
-  `DATABASE_URL`, pisa el valor default de `database_url`.
-- `model_path`: acá es donde se define **qué archivo de modelo se carga** —
-  hoy apunta a `compatibility_net.pt` (la red neuronal).
+- `BaseSettings` de Pydantic lee y valida variables de entorno o `.env`; no
+  mantiene valores de configuración por defecto en el código. Si falta alguna
+  variable requerida, falla al iniciar con un error de validación.
+- `.env.example` documenta `DATABASE_URL`, `MODEL_PATH`, `API_TITLE` y
+  `API_VERSION`. Se copia a `.env` para configurar el entorno local; `.env` no
+  se versiona.
+- `model_path` define qué archivo de modelo se carga.
 - `settings = Settings()`: se instancia **una sola vez** al importar el
   módulo, y todo el resto del proyecto importa este mismo objeto (`from
-  app.config import settings`) — patrón singleton implícito de Python (los
-  módulos se cachean).
+  app.config import settings`).
 
 ### 2.3 `app/database.py`
 
 ```python
+from threading import Lock
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
+
 from app.config import settings
 
-engine = create_engine(settings.database_url)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+class Database:
+    _instance = None
+    _lock = Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            instance = super().__new__(cls)
+            instance.engine = create_engine(settings.database_url)
+            instance.session_factory = sessionmaker(
+                autocommit=False, autoflush=False, bind=instance.engine
+            )
+            cls._instance = instance
+        return cls._instance
+
+
+database = Database()
 Base = declarative_base()
 
 def get_db():
-    db = SessionLocal()
+    db = database.session_factory()
     try:
         yield db
     finally:
         db.close()
 ```
 
-- `engine`: la conexión real a PostgreSQL, construida a partir de la URL en
-  `settings`.
-- `SessionLocal`: fábrica de sesiones de SQLAlchemy. `autocommit=False` y
-  `autoflush=False` significan que **vos controlás explícitamente** cuándo se
-  escribe a la base (con `.commit()`), nada se guarda solo.
+- `Database`: singleton que crea una sola instancia de engine y de fábrica de
+  sesiones durante la ejecución del proceso.
+- `get_db()`: crea una sesión por request y la cierra al finalizar; las
+  sesiones no son singleton.
+- La fábrica configura `autocommit=False` y `autoflush=False`, así que los
+  cambios se confirman explícitamente con `.commit()`.
 - `Base`: la clase base de la que heredan `Profile` y `Friendship` — es lo que
-  le permite a SQLAlchemy saber qué clases mapean a qué tablas.
+  `Feedback` también hereda; le permite a SQLAlchemy registrar las clases y
+  sus tablas.
 - `get_db()`: es un **generador** usado como dependencia de FastAPI
   (`Depends(get_db)`). Abre una sesión, la entrega (`yield`), y pase lo que
   pase (incluso si el endpoint tira una excepción) la cierra en el `finally`.
@@ -141,8 +162,8 @@ def get_db():
 router = APIRouter(prefix="/compatibility", tags=["Compatibility"])
 
 def get_service(db: Session = Depends(get_db)) -> CompatibilityService:
-    repository = FriendshipRepository(db)
-    return CompatibilityService(repository)
+    dao = FriendshipDAO(db)
+    return CompatibilityService(dao)
 
 @router.post("/predict", response_model=CompatibilityResponse)
 def predict_compatibility(
@@ -158,9 +179,9 @@ def predict_compatibility(
 - `APIRouter(prefix="/compatibility", ...)`: agrupa rutas bajo el prefijo
   `/compatibility`, así el endpoint real queda en `POST /compatibility/predict`.
 - `get_service(...)`: es una **cadena de dependencias**. FastAPI resuelve
-  `Depends(get_db)` primero y el proveedor arma `FriendshipRepository` y
+  `Depends(get_db)` primero y el proveedor arma `FriendshipDAO` y
   `CompatibilityService`. Los proveedores de reentrenamiento y métricas
-  están en el mismo módulo. La creación del repositorio concreto ocurre en
+  están en el mismo módulo. La creación del DAO concreto ocurre en
   esos proveedores, que son el punto de composición.
 - El controller **no tiene lógica de negocio**: solo recibe el request
   (validado por Pydantic vía `CompatibilityRequest`), le pasa los IDs al
@@ -203,10 +224,10 @@ class CompatibilityResponse(BaseModel):
   API**, no vistas HTML — es la convención MVC adaptada a una API REST (la
   "vista" es la forma en la que se serializa la respuesta).
 
-### 2.6 `app/repositories/contratos.py` y `app/repositories/repositorio_amistades.py`
+### 2.6 `app/dao/contratos.py` y `app/dao/amistades_dao.py`
 
 ```python
-class FriendshipRepository(RepositorioCompatibilidad, RepositorioAmistades):
+class FriendshipDAO(CompatibilidadDAO, AmistadesDAO):
     def __init__(self, db: Session):
         self.db = db
 
@@ -214,13 +235,13 @@ class FriendshipRepository(RepositorioCompatibilidad, RepositorioAmistades):
         return self.db.query(Profile).filter(Profile.id == profile_id).first()
 ```
 
-- `contratos.py` declara `RepositorioPerfiles`, `RepositorioFeedback`,
-  `RepositorioAmistades` y el contrato combinado `RepositorioCompatibilidad`.
-  `repositorio_amistades.py` implementa estos métodos con SQLAlchemy.
-- `CompatibilityService` depende de `RepositorioCompatibilidad` y
-  `RetrainService` de `RepositorioFeedback`, no de `FriendshipRepository`.
+- `contratos.py` declara `PerfilesDAO`, `FeedbackDAO`,
+  `AmistadesDAO` y el contrato combinado `CompatibilidadDAO`.
+  `amistades_dao.py` implementa estos métodos con SQLAlchemy.
+- `CompatibilityService` depende de `CompatibilidadDAO` y
+  `RetrainService` de `FeedbackDAO`, no de `FriendshipDAO`.
   El proveedor del controller elige la implementación concreta.
-- El repositorio guarda feedback y amistades/predicciones. La ruta de
+- El DAO guarda feedback y amistades/predicciones. La ruta de
   predicción actual no persiste el score; `CompatibilityService.predict` es
   de solo lectura.
 
@@ -252,8 +273,8 @@ cambiar la otra.
 
 ```python
 class CompatibilityService:
-    def __init__(self, repository: RepositorioCompatibilidad, model=None):
-        self.repository = repository
+    def __init__(self, dao: CompatibilidadDAO, model=None):
+        self.dao = dao
         self.model = (
             model if model is not None else ModelFactory.get_model(settings.model_path)
         )
@@ -262,7 +283,7 @@ class CompatibilityService:
         ...
 ```
 
-- El repositorio y el calculador de features se reciben por constructor; el
+- El DAO y el calculador de features se reciben por constructor; el
   modelo también se puede inyectar para pruebas. Por defecto, el service pide
   el modelo al Factory, que lo cachea en memoria.
 - `torch.tensor([features], ...)`: el `[features]` (lista dentro de lista) es

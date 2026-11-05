@@ -1,7 +1,7 @@
-# tests/test_friendship_repository.py
+# tests/test_friendship_dao.py
 """
-Tests de integración de FriendshipRepository
-(app/repositories/repositorio_amistades.py).
+Tests de integración de FriendshipDAO
+(app/dao/amistades_dao.py).
 
 Usa SQLite en memoria (vía StaticPool para que todas las conexiones del
 engine compartan la misma DB en memoria) en vez de mockear Session, para
@@ -16,7 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models.friendship import Friendship
 from app.models.profile import Profile
-from app.repositories.repositorio_amistades import FriendshipRepository
+from app.dao.amistades_dao import FriendshipDAO
 
 
 @pytest.fixture
@@ -35,8 +35,8 @@ def db_session():
 
 
 @pytest.fixture
-def repository(db_session):
-    return FriendshipRepository(db_session)
+def dao(db_session):
+    return FriendshipDAO(db_session)
 
 
 def _crear_perfil(db_session, **kwargs):
@@ -51,33 +51,33 @@ def _crear_perfil(db_session, **kwargs):
 
 class TestGetProfile:
 
-    def test_devuelve_el_perfil_si_existe(self, db_session, repository):
+    def test_devuelve_el_perfil_si_existe(self, db_session, dao):
         perfil = _crear_perfil(db_session, username="rocio")
 
-        encontrado = repository.get_profile(perfil.id)
+        encontrado = dao.get_profile(perfil.id)
 
         assert encontrado is not None
         assert encontrado.id == perfil.id
         assert encontrado.username == "rocio"
 
-    def test_devuelve_none_si_no_existe(self, repository):
-        assert repository.get_profile(9999) is None
+    def test_devuelve_none_si_no_existe(self, dao):
+        assert dao.get_profile(9999) is None
 
 
 class TestGetAllFriendships:
 
-    def test_lista_vacia_si_no_hay_friendships(self, repository):
-        assert repository.get_all_friendships() == []
+    def test_lista_vacia_si_no_hay_friendships(self, dao):
+        assert dao.get_all_friendships() == []
 
-    def test_devuelve_todas_las_friendships_guardadas(self, db_session, repository):
+    def test_devuelve_todas_las_friendships_guardadas(self, db_session, dao):
         a = _crear_perfil(db_session, username="a")
         b = _crear_perfil(db_session, username="b")
         c = _crear_perfil(db_session, username="c")
 
-        repository.save_prediction(a.id, b.id, 0.9)
-        repository.save_prediction(a.id, c.id, 0.3)
+        dao.save_prediction(a.id, b.id, 0.9)
+        dao.save_prediction(a.id, c.id, 0.3)
 
-        resultado = repository.get_all_friendships()
+        resultado = dao.get_all_friendships()
 
         assert len(resultado) == 2
         scores = {f.compatibility_score for f in resultado}
@@ -86,22 +86,22 @@ class TestGetAllFriendships:
 
 class TestSavePrediction:
 
-    def test_crea_y_persiste_el_registro(self, db_session, repository):
+    def test_crea_y_persiste_el_registro(self, db_session, dao):
         a = _crear_perfil(db_session, username="a")
         b = _crear_perfil(db_session, username="b")
 
-        registro = repository.save_prediction(a.id, b.id, 0.75)
+        registro = dao.save_prediction(a.id, b.id, 0.75)
 
         assert registro.id is not None
         assert registro.user_id == a.id
         assert registro.friend_id == b.id
         assert registro.compatibility_score == 0.75
 
-    def test_el_registro_queda_realmente_en_la_db(self, db_session, repository):
+    def test_el_registro_queda_realmente_en_la_db(self, db_session, dao):
         a = _crear_perfil(db_session, username="a")
         b = _crear_perfil(db_session, username="b")
 
-        repository.save_prediction(a.id, b.id, 0.6)
+        dao.save_prediction(a.id, b.id, 0.6)
 
         encontrado = (
             db_session.query(Friendship)
@@ -112,14 +112,14 @@ class TestSavePrediction:
         assert encontrado.compatibility_score == 0.6
 
     def test_dos_predicciones_del_mismo_par_generan_dos_filas(
-        self, db_session, repository
+        self, db_session, dao
     ):
         """save_prediction no hace upsert: cada llamada agrega una fila nueva."""
         a = _crear_perfil(db_session, username="a")
         b = _crear_perfil(db_session, username="b")
 
-        repository.save_prediction(a.id, b.id, 0.5)
-        repository.save_prediction(a.id, b.id, 0.8)
+        dao.save_prediction(a.id, b.id, 0.5)
+        dao.save_prediction(a.id, b.id, 0.8)
 
         filas = (
             db_session.query(Friendship)

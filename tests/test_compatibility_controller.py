@@ -4,7 +4,7 @@ Tests de los endpoints de la API (app/controllers/compatibility_controller.py).
 
 Usa TestClient de FastAPI con overrides de los proveedores de servicios (via
 app.dependency_overrides) para no depender de una base de datos real:
-repository y services ya están cubiertos por sus propios tests.
+DAO y services ya están cubiertos por sus propios tests.
 """
 
 from unittest.mock import MagicMock

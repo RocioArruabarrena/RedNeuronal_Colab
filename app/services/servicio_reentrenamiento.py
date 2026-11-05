@@ -4,13 +4,13 @@ from pathlib import Path
 import numpy as np
 
 from app.config import settings
+from app.dao.contratos import FeedbackDAO
 from app.ml.almacenamiento import AlmacenMetricas, AlmacenModelo
 from app.ml.criterios_aceptacion import CriterioAceptacion, NoEmpeorarF1
 from app.ml.dataset_feedback import DatasetReentrenamiento
 from app.ml.entrenador import ConfigEntrenamiento, Entrenador
 from app.ml.evaluador import Evaluador
 from app.ml.fabrica_modelo import ModelFactory
-from app.repositories.contratos import RepositorioFeedback
 
 RAIZ = Path(__file__).resolve().parents[2]
 SPLIT_PATH = RAIZ / "data" / "splits.npz"
@@ -31,7 +31,7 @@ class RetrainService:
 
     def __init__(
         self,
-        repository: RepositorioFeedback,
+        dao: FeedbackDAO,
         evaluador: Evaluador | None = None,
         entrenador: Entrenador | None = None,
         armador: DatasetReentrenamiento | None = None,
@@ -41,7 +41,7 @@ class RetrainService:
         fabrica=ModelFactory,
         split_path: Path = SPLIT_PATH,
     ):
-        self.repository = repository
+        self.dao = dao
         self.evaluador = evaluador or Evaluador()
         # Fine-tuning: épocas fijas (patience mayor que las épocas = sin early stop)
         self.entrenador = entrenador or Entrenador(
@@ -107,7 +107,7 @@ class RetrainService:
         return resultado
 
     def _feedback_valido(self) -> list:
-        feedback = self.armador.ultimo_por_par(self.repository.get_all_feedback())
+        feedback = self.armador.ultimo_por_par(self.dao.get_all_feedback())
         if len(feedback) < MIN_FEEDBACK:
             raise ValueError(
                 f"Hacen falta al menos {MIN_FEEDBACK} pares distintos con "

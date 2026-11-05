@@ -5,14 +5,14 @@ from app.models.friendship import Friendship
 from app.models.profile import Profile
 
 
-class RepositorioPerfiles(ABC):
+class PerfilesDAO(ABC):
     """Contrato para consultar perfiles."""
 
     @abstractmethod
     def get_profile(self, profile_id: int) -> Profile | None: ...
 
 
-class RepositorioFeedback(ABC):
+class FeedbackDAO(ABC):
     """Contrato para el feedback (valor real confirmado por el usuario)."""
 
     @abstractmethod
@@ -29,7 +29,7 @@ class RepositorioFeedback(ABC):
     ) -> Feedback: ...
 
 
-class RepositorioAmistades(ABC):
+class AmistadesDAO(ABC):
     """Contrato para amistades y predicciones guardadas."""
 
     @abstractmethod
@@ -41,5 +41,5 @@ class RepositorioAmistades(ABC):
     ) -> Friendship: ...
 
 
-class RepositorioCompatibilidad(RepositorioPerfiles, RepositorioFeedback):
+class CompatibilidadDAO(PerfilesDAO, FeedbackDAO):
     """Lo que necesita CompatibilityService: perfiles y feedback, nada más."""
